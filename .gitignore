@@ -1,0 +1,60 @@
+# --- Python ---
+# Байт-код (компилированные файлы)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C-расширения
+*.so
+
+# --- Виртуальные окружения (Virtual Environments) ---
+# Частые названия папок для venv
+env/
+venv/
+.env
+.venv/
+venv.bak/
+
+# --- Сборка и дистрибуция (например, PyInstaller) ---
+# Если будешь компилировать игру в .exe
+build/
+dist/
+*.spec
+*.manifest
+
+# --- IDE и редакторы кода ---
+# PyCharm
+.idea/
+# VS Code
+.vscode/
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# --- Операционные системы ---
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- Логи и базы данных ---
+*.log
+*.sqlite3
+
+# --- Игровые ассеты (ОПЦИОНАЛЬНО) ---
+# Раскомментируй ниже, если не хочешь грузить исходники
+# тяжелых форматов (например, проекты Photoshop или Blender),
+# а хочешь хранить только готовые .png / .ogg
+# *.psd
+# *.blend
+# *.kra
+
+# --- Конфигурации и секреты ---
+# Файлы с паролями или локальными настройками
+.env
+config_local.py
