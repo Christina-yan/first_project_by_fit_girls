@@ -30,7 +30,7 @@ C_GIFT_2 = (255, 215, 0)  # Желтый подарок
 GRAVITY = 0.25
 JUMP_FORCE = -6.5
 PIPE_SPEED = 3.5
-PIPE_GAP = 220  # Чуть шире, так как сани крупнее
+PIPE_GAP = 220
 PIPE_FREQ = 1600
 
 pygame.init()
@@ -40,6 +40,7 @@ clock = pygame.time.Clock()
 
 font = pygame.font.SysFont("Arial", 24, bold=True)
 font_big = pygame.font.SysFont("Arial", 50, bold=True)
+font_medium = pygame.font.SysFont("Arial", 36, bold=True)
 
 
 # --- ГРАФИКА ---
@@ -62,62 +63,128 @@ def create_santa_sprite():
     surf = pygame.Surface((w, h), pygame.SRCALPHA)
 
     # 1. Полозья (Runners) - снизу
-    # Задняя часть полоза
     pygame.draw.line(surf, C_RUNNERS, (10, 60), (80, 60), 3)
-    # Завиток спереди
     pygame.draw.arc(surf, C_RUNNERS, (60, 40, 25, 25), 0, 3.14 / 2, 3)
-    # Стойки полозьев
     pygame.draw.line(surf, C_RUNNERS, (25, 60), (25, 50), 2)
     pygame.draw.line(surf, C_RUNNERS, (60, 60), (65, 50), 2)
 
     # 2. Мешок с подарками (Сзади)
     pygame.draw.circle(surf, C_BAG, (25, 35), 14)
-    # Торчащие коробки подарков
-    pygame.draw.rect(surf, C_GIFT_1, (15, 25, 10, 10))  # Зеленый
-    pygame.draw.rect(surf, C_GIFT_2, (28, 22, 8, 8))  # Желтый
+    pygame.draw.rect(surf, C_GIFT_1, (15, 25, 10, 10))
+    pygame.draw.rect(surf, C_GIFT_2, (28, 22, 8, 8))
 
     # 3. Тело Саней (The Sleigh)
-    # Форма лодки
     points_sleigh = [(10, 35), (15, 55), (75, 55), (85, 35)]
     pygame.draw.polygon(surf, C_SLEIGH_BODY, points_sleigh)
-    # Золотая окантовка сверху
     pygame.draw.lines(surf, C_SLEIGH_TRIM, False, [(10, 35), (85, 35)], 4)
-    # Декор сбоку
     pygame.draw.line(surf, C_SLEIGH_TRIM, (25, 45), (65, 45), 2)
 
     # 4. Санта (Тело)
-    # Шуба (полукруг)
     pygame.draw.ellipse(surf, C_SANTA_RED, (40, 20, 30, 30))
-    # Белый мех на груди
     pygame.draw.line(surf, C_WHITE, (55, 20), (55, 40), 4)
 
     # 5. Голова Санты
-    # Лицо
     pygame.draw.circle(surf, C_SKIN, (55, 18), 9)
-    # Розовый нос
     pygame.draw.circle(surf, (255, 180, 180), (58, 19), 3)
-    # Глаз
     pygame.draw.circle(surf, (0, 0, 0), (60, 16), 2)
 
     # 6. Борода (Пышная)
-    # Рисуем несколько кругов для объема
-    pygame.draw.circle(surf, C_BEARD, (55, 26), 8)  # Центр
-    pygame.draw.circle(surf, C_BEARD, (48, 24), 6)  # Слева
-    pygame.draw.circle(surf, C_BEARD, (62, 24), 6)  # Справа
+    pygame.draw.circle(surf, C_BEARD, (55, 26), 8)
+    pygame.draw.circle(surf, C_BEARD, (48, 24), 6)
+    pygame.draw.circle(surf, C_BEARD, (62, 24), 6)
 
     # 7. Шапка
-    # Основание
     pygame.draw.ellipse(surf, C_WHITE, (45, 8, 20, 8))
-    # Красный колпак (сдувает ветром назад)
     points_hat = [(48, 10), (62, 10), (35, 0)]
     pygame.draw.polygon(surf, C_SANTA_RED, points_hat)
-    # Помпон
     pygame.draw.circle(surf, C_WHITE, (35, 0), 4)
 
-    # 8. Рука в варежке (Держит поводья)
-    pygame.draw.circle(surf, (50, 150, 50), (65, 35), 5)  # Зеленая варежка
+    # 8. Рука в варежке
+    pygame.draw.circle(surf, (50, 150, 50), (65, 35), 5)
 
     return surf
+
+
+# Функция для отрисовки гирлянды
+def draw_garland(surface, y_base, curvature, ticks, inverted=False):
+    """
+    Рисует гирлянду с лампами.
+    y_base: базовая высота
+    curvature: насколько сильно провисает провод
+    inverted: если True, дуга выгнута вверх (для низа экрана)
+    """
+    num_bulbs = 20
+    colors = [
+        (255, 50, 50),  # Красный
+        (50, 255, 50),  # Зеленый
+        (255, 215, 0),  # Золотой
+        (50, 100, 255),  # Синий
+        (255, 0, 255),  # Фиолетовый
+    ]
+
+    wire_points = []
+    spacing = WIDTH / (num_bulbs - 1)
+
+    # 1. Рисуем провод (дугу)
+    for i in range(num_bulbs):
+        x = i * spacing
+        # Нормализуем x от -1 до 1
+        nx = (x / WIDTH) * 2 - 1
+
+        # Формула параболы для провисания
+        sag = curvature * (1 - nx**2)
+        if inverted:
+            y = y_base - sag
+        else:
+            y = y_base + sag
+        wire_points.append((x, y))
+
+    if len(wire_points) > 1:
+        pygame.draw.lines(surface, (50, 50, 50), False, wire_points, 3)
+
+    # 2. Рисуем лампочки
+    for i, (x, y) in enumerate(wire_points):
+        base_color = colors[i % len(colors)]
+
+        # Анимация мигания (синусоида со сдвигом фазы для каждой лампы)
+        # Скорость: 0.005, Фаза: i * 0.5
+        flash = math.sin(ticks * 0.002 + i * 5)
+        intensity = (flash + 1) / 2  # от 0.0 до 1.0
+
+        # Минимальная яркость, чтобы не гасли полностью
+        brightness = 0.3 + 0.7 * intensity
+
+        # Применяем яркость к цвету
+        current_color = (
+            int(base_color[0] * brightness),
+            int(base_color[1] * brightness),
+            int(base_color[2] * brightness),
+        )
+
+        # Рисуем свечение (Glow)
+        if brightness > 0.6:
+            glow_radius = 15 + int(10 * intensity)
+            glow_surf = pygame.Surface(
+                (glow_radius * 2, glow_radius * 2), pygame.SRCALPHA
+            )
+            glow_color = (*base_color, int(50 * intensity))  # Полупрозрачный
+            pygame.draw.circle(
+                glow_surf, glow_color, (glow_radius, glow_radius), glow_radius
+            )
+            surface.blit(
+                glow_surf,
+                (x - glow_radius, y - glow_radius + (5 if not inverted else -5)),
+            )
+
+        # Цоколь
+        socket_y = y - 2 if not inverted else y + 2
+        pygame.draw.rect(surface, (40, 40, 40), (x - 4, socket_y, 8, 6))
+
+        # Сама лампочка
+        bulb_y = y + 6 if not inverted else y - 6
+        pygame.draw.circle(surface, current_color, (x, bulb_y), 6)
+        # Блик на лампочке
+        pygame.draw.circle(surface, (255, 255, 255), (x - 2, bulb_y - 2), 2)
 
 
 # --- КЛАССЫ ---
@@ -126,21 +193,18 @@ def create_santa_sprite():
 class SantaPlayer:
     def __init__(self):
         self.original_image = create_santa_sprite()
-        # Центрируем чуть левее центра, так как сани длинные
         self.rect = self.original_image.get_rect(center=(120, HEIGHT // 2))
         self.vel = 0
         self.angle = 0
-        self.glow_alpha = 0
 
     def jump(self):
         self.vel = JUMP_FORCE
-        self.angle = 10  # Сани тяжелые, угол меньше
+        self.angle = 10
 
     def move(self):
         self.vel += GRAVITY
         self.rect.y += self.vel
 
-        # Вращение (Плавное)
         self.angle -= 1.0
         if self.angle < -20:
             self.angle = -20
@@ -156,9 +220,7 @@ class SantaPlayer:
         new_rect = rotated.get_rect(center=self.rect.center)
         surface.blit(rotated, new_rect.topleft)
 
-        # Магический шлейф за санями (золотая пыль)
         if random.random() < 0.4:
-            # Генерируем частицы сзади саней
             offset_x = -30
             offset_y = 10
             px = self.rect.centerx + offset_x
@@ -186,7 +248,6 @@ class CandyPipe:
         self.draw_cane(surface, self.top_rect)
         self.draw_cane(surface, self.bot_rect)
 
-        # Декор крышек
         cap_h = 24
         self.draw_cap(surface, self.x - 6, self.gap_y - cap_h, self.width + 12, cap_h)
         self.draw_cap(
@@ -195,7 +256,6 @@ class CandyPipe:
 
     def draw_cane(self, surface, rect):
         pygame.draw.rect(surface, (245, 245, 250), rect)
-        # Полоски
         clip = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
         offset = (pygame.time.get_ticks() // 10) % 60
         for i in range(-60, rect.height + 60, 60):
@@ -208,7 +268,6 @@ class CandyPipe:
             pygame.draw.polygon(clip, (220, 20, 60), pts)
             pygame.draw.line(clip, (180, 0, 0), pts[0], pts[1], 2)
 
-        # Блик
         pygame.draw.rect(clip, (255, 255, 255, 80), (8, 0, 12, rect.height))
         surface.blit(clip, rect.topleft)
         pygame.draw.rect(surface, (80, 80, 80), rect, 2)
@@ -237,13 +296,14 @@ class SnowSystem:
             "off": random.uniform(0, 6.28),
         }
 
-    def draw(self, surface):
+    def draw(self, surface, paused=False):
         for f in self.flakes:
-            f["y"] += f["speed"]
-            f["x"] += math.sin(pygame.time.get_ticks() * 0.002 + f["off"]) * 0.5
-            if f["y"] > HEIGHT:
-                new = self.new_flake()
-                f["x"], f["y"] = new["x"], new["y"]
+            if not paused:
+                f["y"] += f["speed"]
+                f["x"] += math.sin(pygame.time.get_ticks() * 0.002 + f["off"]) * 0.5
+                if f["y"] > HEIGHT:
+                    new = self.new_flake()
+                    f["x"], f["y"] = new["x"], new["y"]
 
             alpha = int(180 * (f["r"] / 4))
             s = pygame.Surface((int(f["r"] * 2), int(f["r"] * 2)), pygame.SRCALPHA)
@@ -251,6 +311,64 @@ class SnowSystem:
                 s, (255, 255, 255, alpha), (int(f["r"]), int(f["r"])), int(f["r"])
             )
             surface.blit(s, (f["x"], f["y"]))
+
+
+def draw_pause_screen(surface, score):
+    """Отрисовка экрана паузы с гирляндами"""
+    # 1. Темный полупрозрачный оверлей
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 40, 200))  # Немного темнее для контраста с огнями
+    surface.blit(overlay, (0, 0))
+
+    ticks = pygame.time.get_ticks()
+
+    # 2. ГИРЛЯНДЫ (Вместо снежинок)
+    # Верхняя гирлянда (провисает вниз)
+    draw_garland(surface, y_base=0, curvature=60, ticks=ticks, inverted=False)
+
+    # Нижняя гирлянда (лежит дугой вверх или провисает у самого низа)
+    draw_garland(
+        surface, y_base=HEIGHT, curvature=50, ticks=ticks + 1000, inverted=True
+    )
+
+    # 3. Панель паузы
+    panel_width = 310
+    panel_height = 210
+    panel = pygame.Rect(
+        WIDTH // 2 - panel_width // 2,
+        HEIGHT // 2 - panel_height // 2,
+        panel_width,
+        panel_height,
+    )
+
+    # Фон панели
+    panel_surf = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
+    pygame.draw.rect(
+        panel_surf,
+        (30, 60, 100, 220),
+        (0, 0, panel_width, panel_height),
+        border_radius=15,
+    )
+    surface.blit(panel_surf, panel.topleft)
+
+    # Рамка
+    pygame.draw.rect(surface, C_SLEIGH_TRIM, panel, 4, border_radius=15)
+
+    # Текст PAUSED
+    pause_text = font_big.render("PAUSED", True, C_WHITE)
+    surface.blit(
+        pause_text, (WIDTH // 2 - pause_text.get_width() // 2, HEIGHT // 2 - 60)
+    )
+
+    # Текущий счет
+    score_text = font.render(f"Score: {score}", True, C_GIFT_2)  # Золотой цвет счета
+    surface.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, HEIGHT // 2))
+
+    # Подсказки
+    hint1 = font.render("Press P or ESC to resume", True, (180, 180, 180))
+    hint2 = font.render("Press Q to quit", True, (150, 150, 150))
+    surface.blit(hint1, (WIDTH // 2 - hint1.get_width() // 2, HEIGHT // 2 + 40))
+    surface.blit(hint2, (WIDTH // 2 - hint2.get_width() // 2, HEIGHT // 2 + 70))
 
 
 # --- MAIN ---
@@ -274,11 +392,12 @@ def main():
         last_pipe = pygame.time.get_ticks()
         game_active = False
         game_over = False
+        paused = False
+        pause_time = 0
 
         while True:
             # ФОН
             screen.fill(C_BG_TOP)
-            # Градиент
             for i in range(0, HEIGHT, 5):
                 ratio = i / HEIGHT
                 color = [
@@ -293,22 +412,39 @@ def main():
             screen.blit(glow, (WIDTH - 220, 30))
             screen.blit(moon_img, (WIDTH - 190, 60))
 
-            snow.draw(screen)
+            # Снег
+            snow.draw(screen, paused)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                    if not game_active and not game_over:
-                        game_active = True
-                        santa.jump()
-                    elif game_active:
-                        santa.jump()
-                    elif game_over:
-                        break
 
-            if game_active:
+                if event.type == pygame.KEYDOWN:
+                    if event.key in (pygame.K_p, pygame.K_ESCAPE):
+                        if game_active and not game_over:
+                            paused = not paused
+                            if paused:
+                                pause_time = pygame.time.get_ticks()
+                            else:
+                                pause_duration = pygame.time.get_ticks() - pause_time
+                                last_pipe += pause_duration
+
+                    if event.key == pygame.K_q and paused:
+                        pygame.quit()
+                        sys.exit()
+
+                    if event.key == pygame.K_SPACE and not paused:
+                        if not game_active and not game_over:
+                            game_active = True
+                            santa.jump()
+                        elif game_active:
+                            santa.jump()
+                        elif game_over:
+                            break
+
+            # Игровая логика
+            if game_active and not paused:
                 if pygame.time.get_ticks() - last_pipe > PIPE_FREQ:
                     gap = random.randint(150, HEIGHT - 150 - PIPE_GAP)
                     pipes.append(CandyPipe(WIDTH + 50, gap))
@@ -322,7 +458,6 @@ def main():
                     p.draw(screen)
                     if p.x < -100:
                         rem.append(p)
-                    # Хитбокс поменьше
                     hb = santa.rect.inflate(-30, -25)
                     if hb.colliderect(p.top_rect) or hb.colliderect(p.bot_rect):
                         game_active = False
@@ -339,9 +474,22 @@ def main():
 
                 santa.draw(screen)
 
-                # Счет
                 sc_txt = font_big.render(str(score), True, C_WHITE)
                 screen.blit(sc_txt, (WIDTH // 2 - sc_txt.get_width() // 2, 100))
+
+                pause_hint = font.render("P - Pause", True, (150, 150, 150))
+                screen.blit(pause_hint, (10, 10))
+
+            elif game_active and paused:
+                for p in pipes:
+                    p.draw(screen)
+                santa.draw(screen)
+
+                sc_txt = font_big.render(str(score), True, C_WHITE)
+                screen.blit(sc_txt, (WIDTH // 2 - sc_txt.get_width() // 2, 100))
+
+                # Вызов обновленного экрана паузы
+                draw_pause_screen(screen, score)
 
             elif not game_active and not game_over:
                 santa.rect.y = (
@@ -366,7 +514,7 @@ def main():
                     with open("santa_score.txt", "w") as f:
                         f.write(str(high_score))
 
-                panel = pygame.Rect(WIDTH // 2 - 130, HEIGHT // 2 - 110, 260, 220)
+                panel = pygame.Rect(WIDTH // 2 - 130, HEIGHT // 2 - 90, 260, 220)
                 pygame.draw.rect(screen, C_WHITE, panel, border_radius=20)
                 pygame.draw.rect(screen, C_SLEIGH_BODY, panel, 4, border_radius=20)
 
