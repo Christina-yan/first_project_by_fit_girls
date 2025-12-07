@@ -38,7 +38,7 @@ GAP = 30
 
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Christmas Sort Puzzle 🧪🎄")
+pygame.display.set_caption("Christmas Water Sort Game 🧪🎄")
 clock = pygame.time.Clock()
 
 # Шрифты
@@ -367,10 +367,14 @@ class GameManager:
         self.snow.update_draw(surface)
 
         # Заголовок
+
+
+
+
         title_surf = font_title.render(f"Level {self.level_idx + 1}", True, C_TEXT)
         surface.blit(title_surf, (WIDTH // 2 - title_surf.get_width() // 2, 50))
 
-        sub_text = "R: Restart"
+        sub_text = ("R: Restart")
         ui_surf = font_ui.render(sub_text, True, (150, 150, 150))
         surface.blit(ui_surf, (WIDTH - 120, 20))
 
@@ -389,7 +393,7 @@ class GameManager:
             overlay.fill((0, 0, 0, 150))
             surface.blit(overlay, (0, 0))
 
-            win_text = font_title.render("Level Complete!", True, (255, 215, 0))
+            win_text = font_title.render("Level Complete!", True, (230, 190, 120))
 
             next_hint = "Press SPACE for next level"
             if self.level_idx == len(LEVELS) - 1:
