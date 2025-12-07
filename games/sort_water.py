@@ -1,346 +1,428 @@
 import pygame
+import random
 import sys
 import copy
+import math
 
-# --- КОНСТАНТЫ И НАСТРОЙКИ ---
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+# --- КОНСТАНТЫ ---
+WIDTH = 800
+HEIGHT = 600
 FPS = 60
 
-# Цвета (R, G, B)
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GRAY = (200, 200, 200)
-DARK_GRAY = (50, 50, 50)
+# Цвета (Winter/Christmas Palette)
+C_BG_TOP = (30, 20, 40)  # Темно-фиолетовый
+C_BG_BOT = (10, 10, 20)  # Почти черный
+C_GLASS_BORDER = (200, 200, 220)
+C_GLASS_FILL = (255, 255, 255, 30)  # Полупрозрачность
+C_HIGHLIGHT = (255, 255, 255, 100)
+C_TEXT = (255, 240, 220)
 
-# Цвета жидкостей
-RED = (220, 50, 50)
-GREEN = (50, 220, 50)
-BLUE = (50, 50, 220)
-YELLOW = (220, 220, 50)
-ORANGE = (255, 165, 0)
-PURPLE = (128, 0, 128)
-CYAN = (0, 255, 255)
-
-# Словарь для маппинга ID цвета в RGB
-COLOR_MAP = {
-    1: RED,
-    2: GREEN,
-    3: BLUE,
-    4: YELLOW,
-    5: ORANGE,
-    6: PURPLE,
-    7: CYAN
+# Цвета жидкостей (Liquids)
+COLORS = {
+    0: None,  # Пусто
+    1: (220, 20, 60),  # Красный (Berry)
+    2: (34, 139, 34),  # Зеленый (Pine)
+    3: (255, 215, 0),  # Золотой (Star)
+    4: (30, 144, 255),  # Синий (Ice)
+    5: (138, 43, 226),  # Фиолетовый (Magic)
+    6: (255, 105, 180)  # Розовый (Candy)
 }
 
-# Размеры пробирок
+# Настройки колб
 TUBE_WIDTH = 60
-TUBE_HEIGHT = 200
-BLOCK_HEIGHT = 45  # Высота одной порции жидкости
-MAX_CAPACITY = 4  # Максимум 4 блока в пробирке
-SPACING = 20  # Расстояние между пробирками
+TUBE_HEIGHT = 240
+BLOCK_HEIGHT = 50  # Высота одного сегмента жидкости
+MAX_CAPACITY = 4
+GAP = 30
 
-# --- ДАННЫЕ УРОВНЕЙ ---
-# Числа обозначают цвета. Пустой список [] - пустая пробирка.
-# Уровни от легкого (мало цветов) к сложному.
-levels_data = [
-    # Уровень 1: 2 цвета, 3 пробирки (очень просто)
+pygame.init()
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Christmas Sort Puzzle 🧪🎄")
+clock = pygame.time.Clock()
+
+# Шрифты
+font_ui = pygame.font.SysFont("Georgia", 24)
+font_title = pygame.font.SysFont("Georgia", 50, bold=True)
+
+# --- УРОВНИ (Загадки) ---
+# Числа соответствуют цветам в словаре COLORS
+LEVELS = [
+    # Уровень 1 (Tutorial)
     [
         [1, 2, 1, 2],
         [2, 1, 2, 1],
-        []
+        [],
     ],
-    # Уровень 2: 3 цвета, 5 пробирок
+    # Уровень 2
     [
         [1, 2, 3, 1],
         [2, 3, 1, 2],
         [3, 1, 2, 3],
+        [],
         []
     ],
-    # Уровень 3: 4 цвета, 6 пробирок
+    # Уровень 3
     [
         [4, 1, 2, 3],
-        [3, 2, 1, 4],
-        [1, 4, 3, 2],
+        [3, 4, 1, 2],
         [2, 3, 4, 1],
+        [1, 2, 3, 4],
+        [],
         []
     ],
-    # Уровень 4: 5 цветов, 7 пробирок
+    # Уровень 4
     [
         [1, 5, 2, 3],
-        [5, 4, 3, 2],
-        [4, 1, 5, 2],
-        [3, 2, 1, 4],
-        [1, 3, 4, 5],
+        [2, 5, 3, 1],
+        [3, 2, 5, 1],
+        [5, 1, 2, 3],
+        [],
         []
     ],
-    # Уровень 5: 6 цветов, 9 пробирок
+    # Уровень 5
     [
-        [1, 6, 5, 2],
-        [3, 1, 4, 6],
-        [5, 2, 1, 3],
-        [6, 3, 2, 4],
-        [4, 5, 6, 1],
-        [2, 4, 3, 5],
+        [4, 2, 1, 5],
+        [3, 5, 1, 4],
+        [1, 4, 2, 3],
+        [2, 5, 3, 5],
+        [3, 2, 4, 1],
+        [],
+        []
+    ],
+    # Уровень 6 (Expert)
+    [
+        [1, 6, 2, 5],
+        [4, 3, 5, 2],
+        [6, 4, 1, 3],
+        [2, 1, 6, 5],
+        [5, 2, 3, 4],
+        [3, 6, 4, 1],
+        [],
         []
     ]
 ]
 
-# --- ИНИЦИАЛИЗАЦИЯ PYGAME ---
-pygame.init()
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("Sort water")
-font_main = pygame.font.SysFont('Arial', 24, bold=True)
-font_large = pygame.font.SysFont('Arial', 40, bold=True)
-clock = pygame.time.Clock()
 
-# --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ СОСТОЯНИЯ ---
-current_level_index = 0
-tubes = []  # Текущее состояние пробирок
-selected_tube = -1  # Индекс выбранной пробирки (-1 если ничего не выбрано)
-steps = 0  # Количество шагов
-game_state = "PLAYING"  # PLAYING, LEVEL_COMPLETE, ALL_COMPLETE
+# --- КЛАССЫ ---
 
+class Particle:
+    """Искры для завершенных колб"""
 
-def load_level(level_idx):
-    """Загружает данные уровня в глобальную переменную tubes"""
-    global tubes, steps, selected_tube, game_state
-    if level_idx < len(levels_data):
-        # Deep copy, чтобы не менять исходные данные уровней при рестарте
-        tubes = copy.deepcopy(levels_data[level_idx])
-        steps = 0
-        selected_tube = -1
-        game_state = "PLAYING"
-    else:
-        game_state = "ALL_COMPLETE"
+    def __init__(self, x, y, color):
+        self.x = x
+        self.y = y
+        self.color = color
+        self.size = random.randint(2, 5)
+        self.life = 255
+        self.vx = random.uniform(-1, 1)
+        self.vy = random.uniform(-2, -0.5)
 
+    def update(self):
+        self.x += self.vx
+        self.y += self.vy
+        self.life -= 4
+        self.size *= 0.95
 
-def draw_tubes():
-    """Отрисовка всех пробирок и жидкости"""
-    num_tubes = len(tubes)
-    # Вычисляем отступ слева, чтобы центрировать все пробирки
-    total_width = num_tubes * TUBE_WIDTH + (num_tubes - 1) * SPACING
-    start_x = (SCREEN_WIDTH - total_width) // 2
-    start_y = (SCREEN_HEIGHT - TUBE_HEIGHT) // 2
-
-    for i in range(num_tubes):
-        tube_x = start_x + i * (TUBE_WIDTH + SPACING)
-        tube_y = start_y
-
-        # Если пробирка выбрана, рисуем её чуть выше
-        if i == selected_tube:
-            tube_y -= 20
-
-        # Рисуем саму пробирку (рамку)
-        tube_rect = pygame.Rect(tube_x, tube_y, TUBE_WIDTH, TUBE_HEIGHT)
-        pygame.draw.rect(screen, GRAY, tube_rect, 3, border_radius=5)  # Рамка
-
-        # Рисуем жидкость
-        # Жидкость хранится [дно, ..., верх]. Рисуем снизу вверх.
-        current_tube_data = tubes[i]
-        for j, color_id in enumerate(current_tube_data):
-            color = COLOR_MAP[color_id]
-            # Координаты блока жидкости
-            # j=0 (дно) -> рисуем в самом низу пробирки
-            block_y = tube_y + TUBE_HEIGHT - (j + 1) * BLOCK_HEIGHT - 5  # -5 отступ от дна рамки
-
-            block_rect = pygame.Rect(tube_x + 5, block_y, TUBE_WIDTH - 10, BLOCK_HEIGHT)
-
-            # Скругление углов для жидкости
-            border_r = 0
-            if j == 0: border_r = 5  # Скруглить дно нижней жидкости
-
-            pygame.draw.rect(screen, color, block_rect, border_radius=border_r)
-
-            # Небольшая черная обводка для разделения блоков
-            pygame.draw.rect(screen, DARK_GRAY, block_rect, 1)
+    def draw(self, surface):
+        if self.life > 0:
+            s = pygame.Surface((int(self.size * 2), int(self.size * 2)), pygame.SRCALPHA)
+            pygame.draw.circle(s, (*self.color, int(self.life)), (int(self.size), int(self.size)), int(self.size))
+            surface.blit(s, (self.x, self.y))
 
 
-def draw_ui():
-    """Отрисовка текста интерфейса"""
-    # Уровень
-    level_text = font_main.render(f"Уровень: {current_level_index + 1} / {len(levels_data)}", True, BLACK)
-    screen.blit(level_text, (20, 20))
+class SnowManager:
+    def __init__(self):
+        self.flakes = [{'x': random.randint(0, WIDTH), 'y': random.randint(0, HEIGHT), 's': random.randint(2, 4),
+                        'v': random.uniform(0.5, 1.5)} for _ in range(100)]
 
-    # Шаги
-    step_text = font_main.render(f"Шаги: {steps}", True, BLACK)
-    screen.blit(step_text, (20, 50))
+    def update_draw(self, surface):
+        for f in self.flakes:
+            f['y'] += f['v']
+            f['x'] += math.sin(pygame.time.get_ticks() * 0.001 + f['y']) * 0.3
+            if f['y'] > HEIGHT: f['y'] = -10; f['x'] = random.randint(0, WIDTH)
 
-    # Подсказки
-    hint_text = font_main.render("R - Рестарт | Пробел - Следующий уровень (при победе)", True, DARK_GRAY)
-    # Центрируем подсказку внизу
-    hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30))
-    screen.blit(hint_text, hint_rect)
-
-    # Сообщение о победе
-    if game_state == "LEVEL_COMPLETE":
-        msg = font_large.render("Уровень пройден! Нажми ПРОБЕЛ", True, GREEN)
-        msg_rect = msg.get_rect(center=(SCREEN_WIDTH // 2, 100))
-        screen.blit(msg, msg_rect)
-    elif game_state == "ALL_COMPLETE":
-        msg = font_large.render("ПОЗДРАВЛЯЕМ! ИГРА ПРОЙДЕНА!", True, ORANGE)
-        msg_rect = msg.get_rect(center=(SCREEN_WIDTH // 2, 100))
-        screen.blit(msg, msg_rect)
+            # Рисуем с альфой
+            s = pygame.Surface((f['s'], f['s']), pygame.SRCALPHA)
+            pygame.draw.circle(s, (255, 255, 255, 150), (f['s'] // 2, f['s'] // 2), f['s'] // 2)
+            surface.blit(s, (f['x'], f['y']))
 
 
-def get_tube_under_mouse(mouse_pos):
-    """Возвращает индекс пробирки под курсором или -1"""
-    num_tubes = len(tubes)
-    total_width = num_tubes * TUBE_WIDTH + (num_tubes - 1) * SPACING
-    start_x = (SCREEN_WIDTH - total_width) // 2
-    start_y = (SCREEN_HEIGHT - TUBE_HEIGHT) // 2
+class Tube:
+    def __init__(self, x, y, content):
+        self.rect = pygame.Rect(x, y, TUBE_WIDTH, TUBE_HEIGHT)
+        self.content = list(content)  # Копия списка цветов
+        self.selected = False
+        self.hover_offset = 0
+        self.completed = False
+        self.particles = []
 
-    x, y = mouse_pos
+    def update(self):
+        # Анимация поднятия при выборе
+        target_offset = -20 if self.selected else 0
+        self.hover_offset += (target_offset - self.hover_offset) * 0.2
 
-    for i in range(num_tubes):
-        tube_x = start_x + i * (TUBE_WIDTH + SPACING)
-        # Учитываем смещение, если пробирка выбрана
-        tube_y = start_y - 20 if i == selected_tube else start_y
+        # Проверка завершения
+        if not self.completed and len(self.content) == 4 and len(set(self.content)) == 1:
+            self.completed = True
+            # Салют
+            for _ in range(30):
+                self.particles.append(Particle(
+                    self.rect.centerx, self.rect.top, COLORS[self.content[0]]
+                ))
 
-        rect = pygame.Rect(tube_x, tube_y, TUBE_WIDTH, TUBE_HEIGHT)
-        if rect.collidepoint(x, y):
-            return i
-    return -1
+        # Частицы
+        for p in self.particles:
+            p.update()
+        self.particles = [p for p in self.particles if p.life > 0]
+
+    def draw(self, surface):
+        # Смещение отрисовки
+        draw_y = self.rect.y + self.hover_offset
+
+        # 1. Рисуем жидкости
+        for i, color_idx in enumerate(self.content):
+            color = COLORS[color_idx]
+            # Координаты блока (рисуем снизу вверх)
+            # Индекс 0 - это дно.
+            block_y = draw_y + TUBE_HEIGHT - (i + 1) * BLOCK_HEIGHT - 10  # -10 отступ снизу
+
+            # Форма жидкости (закругленная)
+            liq_rect = pygame.Rect(self.rect.x + 4, block_y, TUBE_WIDTH - 8, BLOCK_HEIGHT)
+
+            # Скругление зависит от позиции
+            border_rad = 0
+            if i == 0: border_rad = 15  # Дно
+            # Верхний слой всегда чуть скруглен визуально
+
+            # Рисуем сглаженный прямоугольник
+            pygame.draw.rect(surface, color, liq_rect, border_radius=10)
+
+            # Блик на жидкости (объем)
+            pygame.draw.rect(surface, (255, 255, 255, 50), (liq_rect.x, liq_rect.y, 10, BLOCK_HEIGHT), border_radius=10)
+
+        # 2. Стеклянная колба
+        glass_surf = pygame.Surface((TUBE_WIDTH, TUBE_HEIGHT), pygame.SRCALPHA)
+
+        # Тело колбы (заливка)
+        pygame.draw.rect(glass_surf, C_GLASS_FILL, (0, 0, TUBE_WIDTH, TUBE_HEIGHT), border_radius=20)
+
+        # Контур
+        pygame.draw.rect(glass_surf, C_GLASS_BORDER, (0, 0, TUBE_WIDTH, TUBE_HEIGHT), 3, border_radius=20)
+
+        # Горлышко
+        pygame.draw.rect(glass_surf, C_GLASS_BORDER, (0, 0, TUBE_WIDTH, 10), border_radius=5)
+
+        # Блик на стекле (длинный слева)
+        pygame.draw.line(glass_surf, C_HIGHLIGHT, (10, 20), (10, TUBE_HEIGHT - 20), 3)
+
+        surface.blit(glass_surf, (self.rect.x, draw_y))
+
+        # 3. Эффект завершения (Пробка/Звезда)
+        if self.completed:
+            # Рисуем пробку
+            cork_rect = pygame.Rect(self.rect.x + 5, draw_y - 10, TUBE_WIDTH - 10, 15)
+            pygame.draw.rect(surface, (139, 69, 19), cork_rect, border_radius=3)
+            # Частицы
+            for p in self.particles:
+                p.draw(surface)
 
 
-def check_win_condition():
-    """Проверяет, завершен ли уровень"""
-    global game_state
-    completed_tubes = 0
-    for tube in tubes:
-        if len(tube) == 0:
-            completed_tubes += 1
-        elif len(tube) == MAX_CAPACITY:
-            # Проверяем, все ли цвета в пробирке одинаковые
-            first_color = tube[0]
-            if all(color == first_color for color in tube):
-                completed_tubes += 1
+class GameManager:
+    def __init__(self):
+        self.level_idx = 0
+        self.load_level(self.level_idx)
+        self.snow = SnowManager()
+        self.game_won = False
 
-    if completed_tubes == len(tubes):
-        game_state = "LEVEL_COMPLETE"
+    def load_level(self, idx):
+        self.level_idx = idx
+        self.tubes = []
 
+        level_data = copy.deepcopy(LEVELS[idx])
+        num_tubes = len(level_data)
 
-def handle_click(pos):
-    """Логика обработки клика мышью"""
-    global selected_tube, steps
+        # Центрируем колбы
+        total_width = num_tubes * TUBE_WIDTH + (num_tubes - 1) * GAP
+        start_x = (WIDTH - total_width) // 2
+        start_y = HEIGHT // 2 - TUBE_HEIGHT // 2 + 50
 
-    if game_state != "PLAYING":
-        return
+        for i, content in enumerate(level_data):
+            x = start_x + i * (TUBE_WIDTH + GAP)
+            self.tubes.append(Tube(x, start_y, content))
 
-    clicked_index = get_tube_under_mouse(pos)
+        self.selected_idx = None
+        self.game_won = False
 
-    if clicked_index == -1:
-        # Клик мимо пробирок - сброс выделения
-        selected_tube = -1
-        return
+    def handle_click(self, pos):
+        if self.game_won:
+            return
 
-    if selected_tube == -1:
-        # Если ничего не выбрано, выбираем кликнутую, если она не пуста
-        if len(tubes[clicked_index]) > 0:
-            selected_tube = clicked_index
-    else:
-        # Если уже выбрана пробирка
-        src = selected_tube
-        dst = clicked_index
+        clicked_idx = None
+        for i, tube in enumerate(self.tubes):
+            # Расширяем зону клика для удобства
+            hitbox = tube.rect.inflate(0, 40)
+            if hitbox.collidepoint(pos):
+                clicked_idx = i
+                break
 
-        if src == dst:
-            # Кликнули по той же самой - отмена выделения
-            selected_tube = -1
-        else:
-            # Пытаемся перелить
-            if is_valid_move(src, dst):
-                pour_liquid(src, dst)
-                steps += 1
-                check_win_condition()
-                selected_tube = -1  # Сброс выделения после хода
+        if clicked_idx is not None:
+            if self.selected_idx is None:
+                # Выбор первой колбы
+                if self.tubes[clicked_idx].content:  # Нельзя выбрать пустую
+                    self.selected_idx = clicked_idx
+                    self.tubes[clicked_idx].selected = True
             else:
-                # Если ход невозможен, просто переключаем выделение на новую (если она не пуста)
-                if len(tubes[dst]) > 0:
-                    selected_tube = dst
+                # Попытка перемещения
+                src = self.selected_idx
+                dst = clicked_idx
+
+                if src == dst:
+                    # Отмена выбора
+                    self.tubes[src].selected = False
+                    self.selected_idx = None
                 else:
-                    selected_tube = -1
+                    # Логика переливания
+                    if self.try_pour(src, dst):
+                        # Успешно перелили
+                        self.tubes[src].selected = False
+                        self.selected_idx = None
+                        self.check_win()
+                    else:
+                        # Нельзя перелить -> меняем выбор
+                        self.tubes[src].selected = False
+                        if self.tubes[dst].content:
+                            self.selected_idx = dst
+                            self.tubes[dst].selected = True
+                        else:
+                            self.selected_idx = None
 
+    def try_pour(self, src_idx, dst_idx):
+        src = self.tubes[src_idx]
+        dst = self.tubes[dst_idx]
 
-def is_valid_move(src_idx, dst_idx):
-    """Проверка правил переливания"""
-    src_tube = tubes[src_idx]
-    dst_tube = tubes[dst_idx]
+        if not src.content: return False  # Откуда лить пусто
+        if len(dst.content) >= MAX_CAPACITY: return False  # Куда лить полно
 
-    if len(src_tube) == 0:
-        return False  # Нечего лить
-    if len(dst_tube) >= MAX_CAPACITY:
-        return False  # Некуда лить
+        color_to_move = src.content[-1]  # Верхний цвет
 
-    # Цвет верхней жидкости в источнике
-    src_color = src_tube[-1]
+        # Правила:
+        # 1. Целевая пустая
+        # 2. ИЛИ Верхний цвет целевой совпадает с переливаемым
+        if not dst.content or dst.content[-1] == color_to_move:
+            # Сколько блоков этого цвета сверху?
+            count = 0
+            for color in reversed(src.content):
+                if color == color_to_move:
+                    count += 1
+                else:
+                    break
 
-    # Если целевая пуста - можно лить
-    if len(dst_tube) == 0:
-        return True
+            # Сколько места в целевой?
+            space = MAX_CAPACITY - len(dst.content)
 
-    # Если не пуста, цвета должны совпадать
-    dst_color = dst_tube[-1]
-    if src_color != dst_color:
+            # Переливаем столько, сколько влезет
+            amount = min(count, space)
+
+            for _ in range(amount):
+                dst.content.append(src.content.pop())
+
+            return True
+
         return False
 
-    return True
+    def check_win(self):
+        # Уровень пройден, если все колбы либо пустые, либо полные одного цвета
+        won = True
+        for tube in self.tubes:
+            if not tube.content: continue  # Пустая - ок
+            if len(tube.content) != MAX_CAPACITY: won = False; break  # Неполная - не ок
+            if len(set(tube.content)) != 1: won = False; break  # Разноцветная - не ок
+
+        if won:
+            self.game_won = True
+
+    def next_level(self):
+        if self.level_idx < len(LEVELS) - 1:
+            self.load_level(self.level_idx + 1)
+        else:
+            # Игра пройдена полностью
+            self.level_idx = 0
+            self.load_level(0)
+
+    def reset_level(self):
+        self.load_level(self.level_idx)
+
+    def update(self):
+        self.snow.update_draw(screen)
+        for tube in self.tubes:
+            tube.update()
+
+    def draw(self, surface):
+        # Фон
+        for i in range(HEIGHT):
+            ratio = i / HEIGHT
+            color = [C_BG_TOP[j] * (1 - ratio) + C_BG_BOT[j] * ratio for j in range(3)]
+            pygame.draw.line(surface, color, (0, i), (WIDTH, i))
+
+        self.snow.update_draw(surface)
+
+        # Заголовок
+        title_surf = font_title.render(f"Level {self.level_idx + 1}", True, C_TEXT)
+        surface.blit(title_surf, (WIDTH // 2 - title_surf.get_width() // 2, 50))
+
+        sub_text = "R: Restart"
+        ui_surf = font_ui.render(sub_text, True, (150, 150, 150))
+        surface.blit(ui_surf, (WIDTH - 120, 20))
+
+        # Колбы
+        for tube in self.tubes:
+            tube.draw(surface)
+
+        # Win Screen         to change arina's paint
+        if self.game_won:
+            overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 150))
+            surface.blit(overlay, (0, 0))
+
+            win_text = font_title.render("Level Complete!", True, (255, 215, 0))
+
+            next_hint = "Press SPACE for next level"
+            if self.level_idx == len(LEVELS) - 1:
+                next_hint = "You finished the game! SPACE to replay"
+
+            hint_text = font_ui.render(next_hint, True, C_TEXT)
+
+            surface.blit(win_text, (WIDTH // 2 - win_text.get_width() // 2, HEIGHT // 2 - 50))
+            surface.blit(hint_text, (WIDTH // 2 - hint_text.get_width() // 2, HEIGHT // 2 + 20))
 
 
-def pour_liquid(src_idx, dst_idx):
-    """Переливает жидкость (все блоки одного цвета сверху)"""
-    src_tube = tubes[src_idx]
-    dst_tube = tubes[dst_idx]
+# --- MAIN LOOP ---
+def main():
+    game = GameManager()
 
-    color_to_move = src_tube[-1]
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
 
-    # Перемещаем блоки пока:
-    # 1. В источнике есть блоки
-    # 2. Верхний блок источника того же цвета
-    # 3. В приемнике есть место
-    while (len(src_tube) > 0 and
-           src_tube[-1] == color_to_move and
-           len(dst_tube) < MAX_CAPACITY):
-        dst_tube.append(src_tube.pop())
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # ЛКМ
+                    game.handle_click(event.pos)
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    game.reset_level()
+
+                if game.game_won and event.key == pygame.K_SPACE:
+                    game.next_level()
+
+        game.update()
+        game.draw(screen)
+
+        pygame.display.flip()
+        clock.tick(FPS)
 
 
-# --- ЗАПУСК ПЕРВОГО УРОВНЯ ---
-load_level(current_level_index)
-
-# --- ИГРОВОЙ ЦИКЛ ---
-running = True
-while running:
-    # 1. Обработка событий
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:  # Левая кнопка мыши
-                handle_click(event.pos)
-
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_r:
-                # Рестарт текущего уровня
-                load_level(current_level_index)
-
-            if event.key == pygame.K_SPACE:
-                # Переход на следующий уровень (если выиграли)
-                if game_state == "LEVEL_COMPLETE":
-                    current_level_index += 1
-                    if current_level_index < len(levels_data):
-                        load_level(current_level_index)
-                    else:
-                        game_state = "ALL_COMPLETE"
-
-    # 2. Отрисовка
-    screen.fill(WHITE)  # Фон
-
-    draw_tubes()
-    draw_ui()
-
-    # 3. Обновление экрана
-    pygame.display.flip()
-    clock.tick(FPS)
-
-pygame.quit()
-sys.exit()
+if __name__ == "__main__":
+    main()
