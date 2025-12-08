@@ -33,6 +33,51 @@ PIPE_SPEED = 3.5
 PIPE_GAP = 220
 PIPE_FREQ = 1600
 
+
+# --- КОНСТАНТЫ БУСТОВ ---
+class BoostType:
+    INVINCIBILITY = "invincibility"
+    SLOW_TIME = "slow_time"
+    SHRINK = "shrink"
+
+
+# Общая длительность для всех бустов
+BOOST_DURATION = 7000  # 7 секунд
+
+# Настройки бустов
+BOOST_SETTINGS = {
+    BoostType.INVINCIBILITY: {
+        "duration": BOOST_DURATION,
+        "color": (100, 200, 255),
+        "name": "Неуязвимость",
+        "icon": "🛡️",
+    },
+    BoostType.SLOW_TIME: {
+        "duration": BOOST_DURATION,
+        "color": (180, 100, 255),
+        "name": "Замедление",
+        "icon": "⏱️",
+    },
+    BoostType.SHRINK: {
+        "duration": BOOST_DURATION,
+        "color": (100, 255, 150),
+        "name": "Уменьшение",
+        "icon": "🔽",
+    },
+}
+
+# Параметры замедления времени
+SLOW_TIME_FACTOR = 0.4
+
+# Параметры уменьшения
+SHRINK_SCALE = 0.5
+
+# Список активных типов бустов
+ACTIVE_BOOST_TYPES = [BoostType.INVINCIBILITY, BoostType.SLOW_TIME, BoostType.SHRINK]
+
+GIFT_SPAWN_CHANCE = 0.15
+
+
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Santa's Sleigh Ride 🎅")
@@ -41,6 +86,7 @@ clock = pygame.time.Clock()
 font = pygame.font.SysFont("Arial", 24, bold=True)
 font_big = pygame.font.SysFont("Arial", 50, bold=True)
 font_medium = pygame.font.SysFont("Arial", 36, bold=True)
+font_small = pygame.font.SysFont("Arial", 18, bold=True)
 
 
 # --- ГРАФИКА ---
@@ -50,7 +96,6 @@ def create_detailed_moon(radius):
     size = radius * 2
     surf = pygame.Surface((size, size), pygame.SRCALPHA)
     pygame.draw.circle(surf, C_MOON, (radius, radius), radius)
-    # Кратеры
     craters = [(15, -10, 12), (-20, 15, 10), (25, 25, 6), (-10, -20, 5)]
     for cx, cy, cr in craters:
         pygame.draw.circle(surf, (230, 230, 220), (radius + cx, radius + cy), cr)
@@ -58,116 +103,85 @@ def create_detailed_moon(radius):
 
 
 def create_santa_sprite():
-    """Рисует Санту в санях векторными фигурами"""
     w, h = 90, 70
     surf = pygame.Surface((w, h), pygame.SRCALPHA)
 
-    # 1. Полозья (Runners) - снизу
     pygame.draw.line(surf, C_RUNNERS, (10, 60), (80, 60), 3)
     pygame.draw.arc(surf, C_RUNNERS, (60, 40, 25, 25), 0, 3.14 / 2, 3)
     pygame.draw.line(surf, C_RUNNERS, (25, 60), (25, 50), 2)
     pygame.draw.line(surf, C_RUNNERS, (60, 60), (65, 50), 2)
 
-    # 2. Мешок с подарками (Сзади)
     pygame.draw.circle(surf, C_BAG, (25, 35), 14)
     pygame.draw.rect(surf, C_GIFT_1, (15, 25, 10, 10))
     pygame.draw.rect(surf, C_GIFT_2, (28, 22, 8, 8))
 
-    # 3. Тело Саней (The Sleigh)
     points_sleigh = [(10, 35), (15, 55), (75, 55), (85, 35)]
     pygame.draw.polygon(surf, C_SLEIGH_BODY, points_sleigh)
     pygame.draw.lines(surf, C_SLEIGH_TRIM, False, [(10, 35), (85, 35)], 4)
     pygame.draw.line(surf, C_SLEIGH_TRIM, (25, 45), (65, 45), 2)
 
-    # 4. Санта (Тело)
     pygame.draw.ellipse(surf, C_SANTA_RED, (40, 20, 30, 30))
     pygame.draw.line(surf, C_WHITE, (55, 20), (55, 40), 4)
 
-    # 5. Голова Санты
     pygame.draw.circle(surf, C_SKIN, (55, 18), 9)
     pygame.draw.circle(surf, (255, 180, 180), (58, 19), 3)
     pygame.draw.circle(surf, (0, 0, 0), (60, 16), 2)
 
-    # 6. Борода (Пышная)
     pygame.draw.circle(surf, C_BEARD, (55, 26), 8)
     pygame.draw.circle(surf, C_BEARD, (48, 24), 6)
     pygame.draw.circle(surf, C_BEARD, (62, 24), 6)
 
-    # 7. Шапка
     pygame.draw.ellipse(surf, C_WHITE, (45, 8, 20, 8))
     points_hat = [(48, 10), (62, 10), (35, 0)]
     pygame.draw.polygon(surf, C_SANTA_RED, points_hat)
     pygame.draw.circle(surf, C_WHITE, (35, 0), 4)
 
-    # 8. Рука в варежке
     pygame.draw.circle(surf, (50, 150, 50), (65, 35), 5)
 
     return surf
 
 
-# Функция для отрисовки гирлянды
 def draw_garland(surface, y_base, curvature, ticks, inverted=False):
-    """
-    Рисует гирлянду с лампами.
-    y_base: базовая высота
-    curvature: насколько сильно провисает провод
-    inverted: если True, дуга выгнута вверх (для низа экрана)
-    """
     num_bulbs = 20
     colors = [
-        (255, 50, 50),  # Красный
-        (50, 255, 50),  # Зеленый
-        (255, 215, 0),  # Золотой
-        (50, 100, 255),  # Синий
-        (255, 0, 255),  # Фиолетовый
+        (255, 50, 50),
+        (50, 255, 50),
+        (255, 215, 0),
+        (50, 100, 255),
+        (255, 0, 255),
     ]
 
     wire_points = []
     spacing = WIDTH / (num_bulbs - 1)
 
-    # 1. Рисуем провод (дугу)
     for i in range(num_bulbs):
         x = i * spacing
-        # Нормализуем x от -1 до 1
         nx = (x / WIDTH) * 2 - 1
-
-        # Формула параболы для провисания
         sag = curvature * (1 - nx**2)
-        if inverted:
-            y = y_base - sag
-        else:
-            y = y_base + sag
+        y = y_base - sag if inverted else y_base + sag
         wire_points.append((x, y))
 
     if len(wire_points) > 1:
         pygame.draw.lines(surface, (50, 50, 50), False, wire_points, 3)
 
-    # 2. Рисуем лампочки
     for i, (x, y) in enumerate(wire_points):
         base_color = colors[i % len(colors)]
-
-        # Анимация мигания (синусоида со сдвигом фазы для каждой лампы)
-        # Скорость: 0.005, Фаза: i * 0.5
         flash = math.sin(ticks * 0.002 + i * 5)
-        intensity = (flash + 1) / 2  # от 0.0 до 1.0
-
-        # Минимальная яркость, чтобы не гасли полностью
+        intensity = (flash + 1) / 2
         brightness = 0.3 + 0.7 * intensity
 
-        # Применяем яркость к цвету
         current_color = (
             int(base_color[0] * brightness),
             int(base_color[1] * brightness),
             int(base_color[2] * brightness),
         )
 
-        # Рисуем свечение (Glow)
         if brightness > 0.6:
             glow_radius = 15 + int(10 * intensity)
             glow_surf = pygame.Surface(
                 (glow_radius * 2, glow_radius * 2), pygame.SRCALPHA
             )
-            glow_color = (*base_color, int(50 * intensity))  # Полупрозрачный
+            glow_color = (*base_color, int(50 * intensity))
             pygame.draw.circle(
                 glow_surf, glow_color, (glow_radius, glow_radius), glow_radius
             )
@@ -176,15 +190,309 @@ def draw_garland(surface, y_base, curvature, ticks, inverted=False):
                 (x - glow_radius, y - glow_radius + (5 if not inverted else -5)),
             )
 
-        # Цоколь
         socket_y = y - 2 if not inverted else y + 2
         pygame.draw.rect(surface, (40, 40, 40), (x - 4, socket_y, 8, 6))
 
-        # Сама лампочка
         bulb_y = y + 6 if not inverted else y - 6
-        pygame.draw.circle(surface, current_color, (x, bulb_y), 6)
-        # Блик на лампочке
-        pygame.draw.circle(surface, (255, 255, 255), (x - 2, bulb_y - 2), 2)
+        pygame.draw.circle(surface, current_color, (int(x), int(bulb_y)), 6)
+        pygame.draw.circle(surface, (255, 255, 255), (int(x) - 2, int(bulb_y) - 2), 2)
+
+
+def draw_slow_time_effect(surface):
+    """Визуальный эффект замедления времени"""
+    vignette = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+
+    pulse = (math.sin(pygame.time.get_ticks() * 0.003) + 1) / 2
+    alpha = int(30 + 20 * pulse)
+
+    for i in range(50):
+        a = int(alpha * (1 - i / 50))
+        color = (150, 80, 200, a)
+        pygame.draw.rect(vignette, color, (0, i, WIDTH, 1))
+        pygame.draw.rect(vignette, color, (0, HEIGHT - 1 - i, WIDTH, 1))
+        pygame.draw.rect(vignette, color, (i, 0, 1, HEIGHT))
+        pygame.draw.rect(vignette, color, (WIDTH - 1 - i, 0, 1, HEIGHT))
+
+    surface.blit(vignette, (0, 0))
+
+    ticks = pygame.time.get_ticks()
+    for i in range(8):
+        x = (ticks * 0.02 + i * 80) % (WIDTH + 40) - 20
+        y = HEIGHT // 2 + math.sin(ticks * 0.001 + i * 1.5) * 200
+
+        size = 3 + int(2 * math.sin(ticks * 0.005 + i))
+        particle_alpha = int(100 + 50 * math.sin(ticks * 0.004 + i * 2))
+
+        particle_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+        pygame.draw.circle(
+            particle_surf, (200, 150, 255, particle_alpha), (size, size), size
+        )
+        surface.blit(particle_surf, (x - size, y - size))
+
+
+def draw_shrink_effect(surface):
+    """Визуальный эффект уменьшения - зелёные частицы по краям"""
+    ticks = pygame.time.get_ticks()
+
+    for i in range(12):
+        x = (ticks * 0.03 + i * 60) % (WIDTH + 40) - 20
+
+        y_top = 10 + math.sin(ticks * 0.002 + i) * 5
+        y_bot = HEIGHT - 10 + math.sin(ticks * 0.002 + i + 3) * 5
+
+        size = 2 + int(2 * math.sin(ticks * 0.005 + i))
+        alpha = int(100 + 50 * math.sin(ticks * 0.004 + i * 2))
+
+        particle_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+        pygame.draw.circle(particle_surf, (100, 255, 150, alpha), (size, size), size)
+        surface.blit(particle_surf, (x - size, y_top - size))
+        surface.blit(particle_surf, (x - size, y_bot - size))
+
+
+# --- СИСТЕМА БУСТОВ ---
+
+
+class BoostManager:
+    def __init__(self):
+        self.active_boosts = {}
+        self.boost_particles = []
+
+    def add_boost(self, boost_type):
+        """Добавить буст, заменяя любой активный буст"""
+        if boost_type in BOOST_SETTINGS:
+            # Очищаем ВСЕ активные бусты перед добавлением нового
+            self.active_boosts.clear()
+
+            # Добавляем новый буст с полным временем
+            duration = BOOST_SETTINGS[boost_type]["duration"]
+            self.active_boosts[boost_type] = pygame.time.get_ticks() + duration
+            self._create_pickup_particles(BOOST_SETTINGS[boost_type]["color"])
+
+    def is_active(self, boost_type):
+        if boost_type in self.active_boosts:
+            if pygame.time.get_ticks() < self.active_boosts[boost_type]:
+                return True
+            else:
+                del self.active_boosts[boost_type]
+        return False
+
+    def get_remaining_time(self, boost_type):
+        if boost_type in self.active_boosts:
+            remaining = self.active_boosts[boost_type] - pygame.time.get_ticks()
+            return max(0, remaining)
+        return 0
+
+    def get_time_factor(self):
+        """Получить множитель скорости времени"""
+        if self.is_active(BoostType.SLOW_TIME):
+            return SLOW_TIME_FACTOR
+        return 1.0
+
+    def get_current_boost_type(self):
+        """Получить текущий активный буст (или None)"""
+        for boost_type in self.active_boosts:
+            if self.is_active(boost_type):
+                return boost_type
+        return None
+
+    def update(self, paused=False):
+        if paused:
+            return
+
+        current = pygame.time.get_ticks()
+        expired = [k for k, v in self.active_boosts.items() if current >= v]
+        for k in expired:
+            del self.active_boosts[k]
+
+        self._update_particles()
+
+    def _create_pickup_particles(self, color):
+        for _ in range(20):
+            self.boost_particles.append(
+                {
+                    "x": 120,
+                    "y": HEIGHT // 2,
+                    "vx": random.uniform(-5, 5),
+                    "vy": random.uniform(-5, 5),
+                    "life": 60,
+                    "color": color,
+                    "size": random.randint(3, 8),
+                }
+            )
+
+    def _update_particles(self):
+        time_factor = self.get_time_factor()
+        for p in self.boost_particles[:]:
+            p["x"] += p["vx"] * time_factor
+            p["y"] += p["vy"] * time_factor
+            p["life"] -= 1
+            p["size"] = max(1, p["size"] - 0.1)
+            if p["life"] <= 0:
+                self.boost_particles.remove(p)
+
+    def draw_particles(self, surface):
+        for p in self.boost_particles:
+            alpha = int(255 * (p["life"] / 60))
+            color = (*p["color"][:3], alpha)
+            s = pygame.Surface(
+                (int(p["size"] * 2), int(p["size"] * 2)), pygame.SRCALPHA
+            )
+            pygame.draw.circle(
+                s, color, (int(p["size"]), int(p["size"])), int(p["size"])
+            )
+            surface.blit(s, (p["x"] - p["size"], p["y"] - p["size"]))
+
+    def draw_ui(self, surface):
+        """Отрисовка UI для единственного активного буста"""
+        y_offset = 50
+
+        for boost_type, end_time in self.active_boosts.items():
+            if boost_type in BOOST_SETTINGS:
+                settings = BOOST_SETTINGS[boost_type]
+                remaining = max(0, end_time - pygame.time.get_ticks())
+                duration = settings["duration"]
+
+                bar_width = 150
+                bar_height = 20
+                bar_x = 10
+                bar_y = y_offset
+
+                pygame.draw.rect(
+                    surface,
+                    (50, 50, 50),
+                    (bar_x, bar_y, bar_width, bar_height),
+                    border_radius=5,
+                )
+
+                fill_width = int(bar_width * (remaining / duration))
+                pygame.draw.rect(
+                    surface,
+                    settings["color"],
+                    (bar_x, bar_y, fill_width, bar_height),
+                    border_radius=5,
+                )
+
+                pygame.draw.rect(
+                    surface,
+                    C_WHITE,
+                    (bar_x, bar_y, bar_width, bar_height),
+                    2,
+                    border_radius=5,
+                )
+
+                text = font_small.render(f"{settings['name']}", True, C_WHITE)
+                surface.blit(text, (bar_x + bar_width + 10, bar_y))
+
+                break
+
+
+class GiftBoost:
+    GIFT_COLORS = {
+        BoostType.INVINCIBILITY: ((100, 180, 255), (200, 230, 255)),
+        BoostType.SLOW_TIME: ((180, 100, 255), (230, 180, 255)),
+        BoostType.SHRINK: ((100, 255, 150), (180, 255, 200)),
+    }
+
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.base_y = y
+        self.size = 35
+        self.rect = pygame.Rect(
+            x - self.size // 2, y - self.size // 2, self.size, self.size
+        )
+        self.collected = False
+
+        self.boost_type = random.choice(ACTIVE_BOOST_TYPES)
+
+        self.bob_offset = random.uniform(0, 6.28)
+        self.rotation = 0
+        self.glow_phase = random.uniform(0, 6.28)
+
+    def update(self, pipe_speed):
+        if self.collected:
+            return
+
+        self.x -= pipe_speed
+
+        bob = math.sin(pygame.time.get_ticks() * 0.005 + self.bob_offset) * 8
+        self.y = self.base_y + bob
+
+        self.rotation = math.sin(pygame.time.get_ticks() * 0.003 + self.bob_offset) * 10
+
+        self.rect.x = self.x - self.size // 2
+        self.rect.y = self.y - self.size // 2
+
+    def draw(self, surface):
+        if self.collected:
+            return
+
+        colors = self.GIFT_COLORS.get(self.boost_type, ((255, 50, 50), (255, 150, 150)))
+        main_color, ribbon_color = colors
+
+        glow_intensity = (
+            math.sin(pygame.time.get_ticks() * 0.008 + self.glow_phase) + 1
+        ) / 2
+        glow_radius = int(self.size + 15 * glow_intensity)
+        glow_surf = pygame.Surface((glow_radius * 2, glow_radius * 2), pygame.SRCALPHA)
+        glow_alpha = int(80 * glow_intensity)
+        pygame.draw.circle(
+            glow_surf,
+            (*main_color, glow_alpha),
+            (glow_radius, glow_radius),
+            glow_radius,
+        )
+        surface.blit(glow_surf, (self.x - glow_radius, self.y - glow_radius))
+
+        gift_surf = pygame.Surface((self.size + 10, self.size + 10), pygame.SRCALPHA)
+        center = (self.size + 10) // 2
+
+        box_rect = pygame.Rect(5, 8, self.size, self.size - 5)
+        pygame.draw.rect(gift_surf, main_color, box_rect, border_radius=4)
+        pygame.draw.rect(gift_surf, (50, 50, 50), box_rect, 2, border_radius=4)
+
+        pygame.draw.rect(gift_surf, ribbon_color, (center - 4, 8, 8, self.size - 5))
+        pygame.draw.rect(gift_surf, ribbon_color, (5, center - 2, self.size, 6))
+
+        pygame.draw.circle(gift_surf, ribbon_color, (center, 8), 8)
+        pygame.draw.circle(gift_surf, ribbon_color, (center - 8, 5), 6)
+        pygame.draw.circle(gift_surf, ribbon_color, (center + 8, 5), 6)
+        pygame.draw.circle(gift_surf, (255, 255, 200), (center, 6), 3)
+
+        pygame.draw.ellipse(gift_surf, (255, 255, 255, 100), (8, 12, 12, 8))
+
+        rotated = pygame.transform.rotate(gift_surf, self.rotation)
+        rot_rect = rotated.get_rect(center=(self.x, self.y))
+        surface.blit(rotated, rot_rect.topleft)
+
+        for i in range(3):
+            angle = pygame.time.get_ticks() * 0.003 + i * 2.09
+            star_x = self.x + math.cos(angle) * (self.size // 2 + 10)
+            star_y = self.y + math.sin(angle) * (self.size // 2 + 10)
+            star_alpha = int(150 + 100 * math.sin(pygame.time.get_ticks() * 0.01 + i))
+            self._draw_star(surface, star_x, star_y, 4, (255, 255, 200, star_alpha))
+
+    def _draw_star(self, surface, x, y, size, color):
+        s = pygame.Surface((size * 3, size * 3), pygame.SRCALPHA)
+        center = size * 1.5
+        pygame.draw.line(
+            s, color[:3], (center - size, center), (center + size, center), 2
+        )
+        pygame.draw.line(
+            s, color[:3], (center, center - size), (center, center + size), 2
+        )
+        s.set_alpha(color[3] if len(color) > 3 else 255)
+        surface.blit(s, (x - center, y - center))
+
+    def check_collision(self, player_rect):
+        if self.collected:
+            return False
+        expanded_rect = player_rect.inflate(10, 10)
+        return self.rect.colliderect(expanded_rect)
+
+    def collect(self):
+        self.collected = True
+        return self.boost_type
 
 
 # --- КЛАССЫ ---
@@ -197,15 +505,52 @@ class SantaPlayer:
         self.vel = 0
         self.angle = 0
 
+        # Для эффекта уменьшения
+        self.current_scale = 1.0
+        self.target_scale = 1.0
+
     def jump(self):
         self.vel = JUMP_FORCE
         self.angle = 10
 
-    def move(self):
-        self.vel += GRAVITY
-        self.rect.y += self.vel
+    def update_scale(self, boost_manager):
+        """Обновление масштаба в зависимости от буста"""
+        if boost_manager and boost_manager.is_active(BoostType.SHRINK):
+            self.target_scale = SHRINK_SCALE
+        else:
+            self.target_scale = 1.0
 
-        self.angle -= 1.0
+        # Плавная интерполяция масштаба
+        scale_speed = 0.1
+        if self.current_scale < self.target_scale:
+            self.current_scale = min(
+                self.current_scale + scale_speed, self.target_scale
+            )
+        elif self.current_scale > self.target_scale:
+            self.current_scale = max(
+                self.current_scale - scale_speed, self.target_scale
+            )
+
+    def get_hitbox(self):
+        """Получить хитбокс с учётом текущего масштаба"""
+        base_shrink_x = -30
+        base_shrink_y = -25
+
+        scale_factor = self.current_scale
+
+        hitbox_width = int((self.rect.width + base_shrink_x) * scale_factor)
+        hitbox_height = int((self.rect.height + base_shrink_y) * scale_factor)
+
+        hitbox = pygame.Rect(0, 0, hitbox_width, hitbox_height)
+        hitbox.center = self.rect.center
+
+        return hitbox
+
+    def move(self, time_factor=1.0):
+        self.vel += GRAVITY * time_factor
+        self.rect.y += self.vel * time_factor
+
+        self.angle -= 1.0 * time_factor
         if self.angle < -20:
             self.angle = -20
         if self.vel < 0:
@@ -215,14 +560,97 @@ class SantaPlayer:
             self.rect.top = 0
             self.vel = 0
 
-    def draw(self, surface):
-        rotated = pygame.transform.rotate(self.original_image, self.angle)
-        new_rect = rotated.get_rect(center=self.rect.center)
-        surface.blit(rotated, new_rect.topleft)
+    def draw(self, surface, boost_manager=None):
+        # Обновляем масштаб
+        self.update_scale(boost_manager)
 
+        is_invincible = boost_manager and boost_manager.is_active(
+            BoostType.INVINCIBILITY
+        )
+        is_shrunk = boost_manager and boost_manager.is_active(BoostType.SHRINK)
+
+        # Масштабируем изображение
+        if self.current_scale != 1.0:
+            scaled_width = int(self.original_image.get_width() * self.current_scale)
+            scaled_height = int(self.original_image.get_height() * self.current_scale)
+            scaled_image = pygame.transform.scale(
+                self.original_image, (scaled_width, scaled_height)
+            )
+        else:
+            scaled_image = self.original_image
+
+        # Поворачиваем изображение
+        rotated = pygame.transform.rotate(scaled_image, self.angle)
+        new_rect = rotated.get_rect(center=self.rect.center)
+
+        # Эффект неуязвимости
+        if is_invincible:
+            alpha = 100 + int(50 * math.sin(pygame.time.get_ticks() * 0.02))
+            temp_surf = rotated.copy()
+            temp_surf.set_alpha(alpha)
+            surface.blit(temp_surf, new_rect.topleft)
+
+            shield_radius = int(
+                (55 + int(5 * math.sin(pygame.time.get_ticks() * 0.01)))
+                * self.current_scale
+            )
+            shield_surf = pygame.Surface(
+                (shield_radius * 2, shield_radius * 2), pygame.SRCALPHA
+            )
+            shield_alpha = 50 + int(30 * math.sin(pygame.time.get_ticks() * 0.015))
+            pygame.draw.circle(
+                shield_surf,
+                (100, 200, 255, shield_alpha),
+                (shield_radius, shield_radius),
+                shield_radius,
+                3,
+            )
+            pygame.draw.circle(
+                shield_surf,
+                (150, 220, 255, shield_alpha // 2),
+                (shield_radius, shield_radius),
+                shield_radius - 5,
+                2,
+            )
+            surface.blit(
+                shield_surf,
+                (self.rect.centerx - shield_radius, self.rect.centery - shield_radius),
+            )
+        # Эффект уменьшения (зелёное свечение)
+        elif is_shrunk:
+            glow_radius = int(40 * self.current_scale)
+            glow_intensity = (math.sin(pygame.time.get_ticks() * 0.01) + 1) / 2
+            glow_alpha = int(40 + 30 * glow_intensity)
+
+            glow_surf = pygame.Surface(
+                (glow_radius * 2, glow_radius * 2), pygame.SRCALPHA
+            )
+            pygame.draw.circle(
+                glow_surf,
+                (100, 255, 150, glow_alpha),
+                (glow_radius, glow_radius),
+                glow_radius,
+            )
+            surface.blit(
+                glow_surf,
+                (self.rect.centerx - glow_radius, self.rect.centery - glow_radius),
+            )
+
+            if random.random() < 0.3:
+                px = self.rect.centerx + random.randint(-20, 20)
+                py = self.rect.centery + random.randint(-15, 15)
+                pygame.draw.circle(
+                    surface, (100, 255, 150), (px, py), random.randint(1, 3)
+                )
+
+            surface.blit(rotated, new_rect.topleft)
+        else:
+            surface.blit(rotated, new_rect.topleft)
+
+        # Искры от саней
         if random.random() < 0.4:
-            offset_x = -30
-            offset_y = 10
+            offset_x = int(-30 * self.current_scale)
+            offset_y = int(10 * self.current_scale)
             px = self.rect.centerx + offset_x
             py = self.rect.centery + offset_y + random.randint(-5, 10)
             pygame.draw.circle(surface, (255, 215, 0), (px, py), random.randint(1, 3))
@@ -239,8 +667,10 @@ class CandyPipe:
             x, gap_y + PIPE_GAP, self.width, HEIGHT - (gap_y + PIPE_GAP)
         )
 
-    def update(self):
-        self.x -= PIPE_SPEED
+    def update(self, speed=None):
+        if speed is None:
+            speed = PIPE_SPEED
+        self.x -= speed
         self.top_rect.x = self.x
         self.bot_rect.x = self.x
 
@@ -296,11 +726,15 @@ class SnowSystem:
             "off": random.uniform(0, 6.28),
         }
 
-    def draw(self, surface, paused=False):
+    def draw(self, surface, paused=False, time_factor=1.0):
         for f in self.flakes:
             if not paused:
-                f["y"] += f["speed"]
-                f["x"] += math.sin(pygame.time.get_ticks() * 0.002 + f["off"]) * 0.5
+                f["y"] += f["speed"] * time_factor
+                f["x"] += (
+                    math.sin(pygame.time.get_ticks() * 0.002 + f["off"])
+                    * 0.5
+                    * time_factor
+                )
                 if f["y"] > HEIGHT:
                     new = self.new_flake()
                     f["x"], f["y"] = new["x"], new["y"]
@@ -314,24 +748,16 @@ class SnowSystem:
 
 
 def draw_pause_screen(surface, score):
-    """Отрисовка экрана паузы с гирляндами"""
-    # 1. Темный полупрозрачный оверлей
     overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    overlay.fill((0, 0, 40, 200))  # Немного темнее для контраста с огнями
+    overlay.fill((0, 0, 40, 200))
     surface.blit(overlay, (0, 0))
 
     ticks = pygame.time.get_ticks()
-
-    # 2. ГИРЛЯНДЫ (Вместо снежинок)
-    # Верхняя гирлянда (провисает вниз)
     draw_garland(surface, y_base=0, curvature=60, ticks=ticks, inverted=False)
-
-    # Нижняя гирлянда (лежит дугой вверх или провисает у самого низа)
     draw_garland(
         surface, y_base=HEIGHT, curvature=50, ticks=ticks + 1000, inverted=True
     )
 
-    # 3. Панель паузы
     panel_width = 310
     panel_height = 210
     panel = pygame.Rect(
@@ -341,7 +767,6 @@ def draw_pause_screen(surface, score):
         panel_height,
     )
 
-    # Фон панели
     panel_surf = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
     pygame.draw.rect(
         panel_surf,
@@ -351,20 +776,16 @@ def draw_pause_screen(surface, score):
     )
     surface.blit(panel_surf, panel.topleft)
 
-    # Рамка
     pygame.draw.rect(surface, C_SLEIGH_TRIM, panel, 4, border_radius=15)
 
-    # Текст PAUSED
     pause_text = font_big.render("PAUSED", True, C_WHITE)
     surface.blit(
         pause_text, (WIDTH // 2 - pause_text.get_width() // 2, HEIGHT // 2 - 60)
     )
 
-    # Текущий счет
-    score_text = font.render(f"Score: {score}", True, C_GIFT_2)  # Золотой цвет счета
+    score_text = font.render(f"Score: {score}", True, C_GIFT_2)
     surface.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, HEIGHT // 2))
 
-    # Подсказки
     hint1 = font.render("Press P or ESC to resume", True, (180, 180, 180))
     hint2 = font.render("Press Q to quit", True, (150, 150, 150))
     surface.blit(hint1, (WIDTH // 2 - hint1.get_width() // 2, HEIGHT // 2 + 40))
@@ -387,15 +808,26 @@ def main():
     while True:
         santa = SantaPlayer()
         pipes = []
+        gifts = []
         snow = SnowSystem()
+        boost_manager = BoostManager()
         score = 0
-        last_pipe = pygame.time.get_ticks()
+
+        pipe_spawn_timer = 0.0
+
         game_active = False
         game_over = False
         paused = False
         pause_time = 0
 
         while True:
+            dt = clock.tick(FPS) / 1000.0
+
+            time_factor = boost_manager.get_time_factor()
+            is_slow_time = boost_manager.is_active(BoostType.SLOW_TIME)
+
+            game_dt = dt * time_factor
+
             # ФОН
             screen.fill(C_BG_TOP)
             for i in range(0, HEIGHT, 5):
@@ -413,7 +845,7 @@ def main():
             screen.blit(moon_img, (WIDTH - 190, 60))
 
             # Снег
-            snow.draw(screen, paused)
+            snow.draw(screen, paused, time_factor if game_active else 1.0)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -428,7 +860,10 @@ def main():
                                 pause_time = pygame.time.get_ticks()
                             else:
                                 pause_duration = pygame.time.get_ticks() - pause_time
-                                last_pipe += pause_duration
+                                for boost_type in boost_manager.active_boosts:
+                                    boost_manager.active_boosts[
+                                        boost_type
+                                    ] += pause_duration
 
                     if event.key == pygame.K_q and paused:
                         pygame.quit()
@@ -437,58 +872,118 @@ def main():
                     if event.key == pygame.K_SPACE and not paused:
                         if not game_active and not game_over:
                             game_active = True
+                            pipe_spawn_timer = 0.0
                             santa.jump()
                         elif game_active:
                             santa.jump()
                         elif game_over:
                             break
 
+            # Обновление менеджера бустов
+            boost_manager.update(paused)
+
+            # Проверяем активные бусты
+            is_invincible = boost_manager.is_active(BoostType.INVINCIBILITY)
+
             # Игровая логика
             if game_active and not paused:
-                if pygame.time.get_ticks() - last_pipe > PIPE_FREQ:
+                pipe_spawn_timer += game_dt * 1000
+
+                current_pipe_speed = PIPE_SPEED * time_factor
+
+                if pipe_spawn_timer >= PIPE_FREQ:
                     gap = random.randint(150, HEIGHT - 150 - PIPE_GAP)
-                    pipes.append(CandyPipe(WIDTH + 50, gap))
-                    last_pipe = pygame.time.get_ticks()
+                    new_pipe = CandyPipe(WIDTH + 50, gap)
+                    pipes.append(new_pipe)
 
-                santa.move()
+                    if random.random() < GIFT_SPAWN_CHANCE:
+                        gift_x = WIDTH + 50 + 37
+                        gift_y = gap + PIPE_GAP // 2
+                        gift_y += random.randint(-30, 30)
+                        gifts.append(GiftBoost(gift_x, gift_y))
 
-                rem = []
+                    pipe_spawn_timer = 0.0
+
+                santa.move(time_factor)
+
+                rem_pipes = []
                 for p in pipes:
-                    p.update()
+                    p.update(current_pipe_speed)
                     p.draw(screen)
+
                     if p.x < -100:
-                        rem.append(p)
-                    hb = santa.rect.inflate(-30, -25)
-                    if hb.colliderect(p.top_rect) or hb.colliderect(p.bot_rect):
-                        game_active = False
-                        game_over = True
+                        rem_pipes.append(p)
+
+                    if not is_invincible:
+                        hb = santa.get_hitbox()
+                        if hb.colliderect(p.top_rect) or hb.colliderect(p.bot_rect):
+                            game_active = False
+                            game_over = True
+
                     if not p.passed and p.x < santa.rect.x:
                         score += 1
                         p.passed = True
-                for r in rem:
+
+                for r in rem_pipes:
                     pipes.remove(r)
 
+                rem_gifts = []
+                for gift in gifts:
+                    gift.update(current_pipe_speed)
+                    gift.draw(screen)
+
+                    if gift.x < -50:
+                        rem_gifts.append(gift)
+
+                    if gift.check_collision(santa.rect):
+                        boost_type = gift.collect()
+                        boost_manager.add_boost(boost_type)
+                        rem_gifts.append(gift)
+
+                for r in rem_gifts:
+                    if r in gifts:
+                        gifts.remove(r)
+
                 if santa.rect.bottom >= HEIGHT:
-                    game_active = False
-                    game_over = True
+                    if not is_invincible:
+                        game_active = False
+                        game_over = True
+                    else:
+                        santa.rect.bottom = HEIGHT
+                        santa.vel = 0
 
-                santa.draw(screen)
+                santa.draw(screen, boost_manager)
 
+                # Эффект замедления времени
+                if is_slow_time:
+                    draw_slow_time_effect(screen)
+
+                # Эффект уменьшения
+                is_shrunk = boost_manager.is_active(BoostType.SHRINK)
+                if is_shrunk:
+                    draw_shrink_effect(screen)
+
+                boost_manager.draw_particles(screen)
+
+                # UI
                 sc_txt = font_big.render(str(score), True, C_WHITE)
                 screen.blit(sc_txt, (WIDTH // 2 - sc_txt.get_width() // 2, 100))
 
                 pause_hint = font.render("P - Pause", True, (150, 150, 150))
                 screen.blit(pause_hint, (10, 10))
 
+                boost_manager.draw_ui(screen)
+
             elif game_active and paused:
                 for p in pipes:
                     p.draw(screen)
-                santa.draw(screen)
+                for gift in gifts:
+                    gift.draw(screen)
+                santa.draw(screen, boost_manager)
 
                 sc_txt = font_big.render(str(score), True, C_WHITE)
                 screen.blit(sc_txt, (WIDTH // 2 - sc_txt.get_width() // 2, 100))
 
-                # Вызов обновленного экрана паузы
                 draw_pause_screen(screen, score)
 
             elif not game_active and not game_over:
@@ -498,12 +993,23 @@ def main():
                 santa.draw(screen)
                 t = font_big.render("SANTA RIDE", True, C_WHITE)
                 s = font.render("Press SPACE", True, (200, 200, 200))
+
+                boost_hint = font_small.render(
+                    "Collect gifts for power-ups!", True, (255, 200, 100)
+                )
+
                 screen.blit(t, (WIDTH // 2 - t.get_width() // 2, HEIGHT // 3))
                 screen.blit(s, (WIDTH // 2 - s.get_width() // 2, HEIGHT // 3 + 60))
+                screen.blit(
+                    boost_hint,
+                    (WIDTH // 2 - boost_hint.get_width() // 2, HEIGHT // 3 + 100),
+                )
 
             elif game_over:
                 for p in pipes:
                     p.draw(screen)
+                for gift in gifts:
+                    gift.draw(screen)
                 santa.draw(screen)
                 overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
                 overlay.fill((0, 0, 0, 180))
@@ -532,7 +1038,6 @@ def main():
                     break
 
             pygame.display.flip()
-            clock.tick(FPS)
 
 
 if __name__ == "__main__":
