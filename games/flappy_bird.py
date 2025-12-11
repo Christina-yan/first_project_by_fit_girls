@@ -78,15 +78,13 @@ ACTIVE_BOOST_TYPES = [BoostType.INVINCIBILITY, BoostType.SLOW_TIME, BoostType.SH
 GIFT_SPAWN_CHANCE = 0.15
 
 
-pygame.init()
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Santa's Sleigh Ride 🎅")
-clock = pygame.time.Clock()
-
-font = pygame.font.SysFont("Arial", 24, bold=True)
-font_big = pygame.font.SysFont("Arial", 50, bold=True)
-font_medium = pygame.font.SysFont("Arial", 36, bold=True)
-font_small = pygame.font.SysFont("Arial", 18, bold=True)
+# Глобальные переменные (инициализируются в run())
+screen = None
+clock = None
+font = None
+font_big = None
+font_medium = None
+font_small = None
 
 
 # --- ГРАФИКА ---
@@ -759,7 +757,7 @@ def draw_pause_screen(surface, score):
     )
 
     panel_width = 310
-    panel_height = 210
+    panel_height = 230  # Немного увеличил
     panel = pygame.Rect(
         WIDTH // 2 - panel_width // 2,
         HEIGHT // 2 - panel_height // 2,
@@ -780,22 +778,38 @@ def draw_pause_screen(surface, score):
 
     pause_text = font_big.render("PAUSED", True, C_WHITE)
     surface.blit(
-        pause_text, (WIDTH // 2 - pause_text.get_width() // 2, HEIGHT // 2 - 60)
+        pause_text, (WIDTH // 2 - pause_text.get_width() // 2, HEIGHT // 2 - 70)
     )
 
     score_text = font.render(f"Score: {score}", True, C_GIFT_2)
-    surface.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, HEIGHT // 2))
+    surface.blit(
+        score_text, (WIDTH // 2 - score_text.get_width() // 2, HEIGHT // 2 - 10)
+    )
 
-    hint1 = font.render("Press P or ESC to resume", True, (180, 180, 180))
-    hint2 = font.render("Press Q to quit", True, (150, 150, 150))
-    surface.blit(hint1, (WIDTH // 2 - hint1.get_width() // 2, HEIGHT // 2 + 40))
-    surface.blit(hint2, (WIDTH // 2 - hint2.get_width() // 2, HEIGHT // 2 + 70))
+    hint1 = font.render("P - Resume", True, (180, 180, 180))
+    hint2 = font.render("Q - Back to Menu", True, (150, 150, 150))
+    surface.blit(hint1, (WIDTH // 2 - hint1.get_width() // 2, HEIGHT // 2 + 30))
+    surface.blit(hint2, (WIDTH // 2 - hint2.get_width() // 2, HEIGHT // 2 + 60))
 
 
 # --- MAIN ---
 
 
-def main():
+def run():
+    """Точка входа для вызова из главного меню"""
+    global screen, clock, font, font_big, font_medium, font_small
+
+    if not pygame.get_init():
+        pygame.init()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("Santa's Sleigh Ride 🎅")
+    clock = pygame.time.Clock()
+
+    font = pygame.font.SysFont("Arial", 24, bold=True)
+    font_big = pygame.font.SysFont("Arial", 50, bold=True)
+    font_medium = pygame.font.SysFont("Arial", 36, bold=True)
+    font_small = pygame.font.SysFont("Arial", 18, bold=True)
+
     moon_img = create_detailed_moon(80)
     high_score = 0
     if os.path.exists("santa_score.txt"):
@@ -805,7 +819,8 @@ def main():
         except:
             pass
 
-    while True:
+    running = True
+    while running:
         santa = SantaPlayer()
         pipes = []
         gifts = []
@@ -819,8 +834,9 @@ def main():
         game_over = False
         paused = False
         pause_time = 0
+        restart_game = False
 
-        while True:
+        while running and not restart_game:
             dt = clock.tick(FPS) / 1000.0
 
             time_factor = boost_manager.get_time_factor()
@@ -849,11 +865,11 @@ def main():
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
+                    running = False
 
                 if event.type == pygame.KEYDOWN:
-                    if event.key in (pygame.K_p, pygame.K_ESCAPE):
+                    # P - только пауза
+                    if event.key == pygame.K_p or event.key == pygame.K_ESCAPE:
                         if game_active and not game_over:
                             paused = not paused
                             if paused:
@@ -865,9 +881,13 @@ def main():
                                         boost_type
                                     ] += pause_duration
 
+                    # ESC - выход в меню (или снятие паузы)
+                    if event.key == pygame.K_ESCAPE:
+                        if not game_active and not game_over:
+                            running = False  # Выход в меню из стартового экрана
+
                     if event.key == pygame.K_q and paused:
-                        pygame.quit()
-                        sys.exit()
+                        running = False  # Выход в меню
 
                     if event.key == pygame.K_SPACE and not paused:
                         if not game_active and not game_over:
@@ -877,7 +897,10 @@ def main():
                         elif game_active:
                             santa.jump()
                         elif game_over:
-                            break
+                            restart_game = True  # Перезапуск игры
+
+            if not running:
+                break
 
             # Обновление менеджера бустов
             boost_manager.update(paused)
@@ -969,7 +992,9 @@ def main():
                 sc_txt = font_big.render(str(score), True, C_WHITE)
                 screen.blit(sc_txt, (WIDTH // 2 - sc_txt.get_width() // 2, 100))
 
-                pause_hint = font.render("P - Pause", True, (150, 150, 150))
+                pause_hint = font.render(
+                    "P - Pause | ESC - Menu", True, (150, 150, 150)
+                )
                 screen.blit(pause_hint, (10, 10))
 
                 boost_manager.draw_ui(screen)
@@ -992,7 +1017,8 @@ def main():
                 )
                 santa.draw(screen)
                 t = font_big.render("SANTA RIDE", True, C_WHITE)
-                s = font.render("Press SPACE", True, (200, 200, 200))
+                s = font.render("Press SPACE to start", True, (200, 200, 200))
+                esc_hint = font.render("ESC - Back to Menu", True, (150, 150, 150))
 
                 boost_hint = font_small.render(
                     "Collect gifts for power-ups!", True, (255, 200, 100)
@@ -1003,6 +1029,10 @@ def main():
                 screen.blit(
                     boost_hint,
                     (WIDTH // 2 - boost_hint.get_width() // 2, HEIGHT // 3 + 100),
+                )
+                screen.blit(
+                    esc_hint,
+                    (WIDTH // 2 - esc_hint.get_width() // 2, HEIGHT // 3 + 300),
                 )
 
             elif game_over:
@@ -1027,18 +1057,27 @@ def main():
                 l1 = font_big.render("GAME OVER", True, C_SLEIGH_BODY)
                 l2 = font.render(f"Score: {score}", True, (50, 50, 50))
                 l3 = font.render(f"Best: {high_score}", True, (200, 150, 0))
-                l4 = font.render("Press SPACE", True, (150, 150, 150))
+                l4 = font.render("SPACE - Retry", True, (150, 150, 150))
+                l5 = font.render("ESC - Menu", True, (150, 150, 150))
 
                 screen.blit(l1, (WIDTH // 2 - l1.get_width() // 2, HEIGHT // 2 - 150))
                 screen.blit(l2, (WIDTH // 2 - l2.get_width() // 2, HEIGHT // 2 - 50))
                 screen.blit(l3, (WIDTH // 2 - l3.get_width() // 2, HEIGHT // 2 - 10))
-                screen.blit(l4, (WIDTH // 2 - l4.get_width() // 2, HEIGHT // 2 + 60))
+                screen.blit(l4, (WIDTH // 2 - l4.get_width() // 2, HEIGHT // 2 + 40))
+                screen.blit(l5, (WIDTH // 2 - l5.get_width() // 2, HEIGHT // 2 + 70))
 
-                if pygame.key.get_pressed()[pygame.K_SPACE]:
-                    break
+                # Проверка клавиш для game over
+                keys = pygame.key.get_pressed()
+                if keys[pygame.K_SPACE]:
+                    restart_game = True
+                if keys[pygame.K_ESCAPE]:
+                    running = False
 
             pygame.display.flip()
 
+    pygame.quit()
 
+
+# Для запуска файла напрямую
 if __name__ == "__main__":
-    main()
+    run()
