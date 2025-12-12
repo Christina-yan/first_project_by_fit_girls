@@ -1,4 +1,9 @@
 # --- Python ---
+
+# рекорды
+highscore.txt
+santa_score.txt
+
 # Байт-код (компилированные файлы)
 __pycache__/
 *.py[cod]
