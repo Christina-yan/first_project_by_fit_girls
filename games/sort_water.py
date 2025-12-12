@@ -3,10 +3,47 @@ import random
 import sys
 import copy
 import math
+import os
+
+def resource_path(relative_path):
+    """Ищем ресурсы рядом со скриптом или рядом с exe"""
+
+    # 1. Если запущено как exe
+    if getattr(sys, "frozen", False):
+        # Сначала рядом с exe
+        exe_dir = os.path.dirname(sys.executable)
+        path = os.path.join(exe_dir, "games", relative_path)
+        if os.path.exists(path):
+            return path
+
+        # Или просто рядом с exe
+        path = os.path.join(exe_dir, relative_path)
+        if os.path.exists(path):
+            return path
+
+        # Или в _MEIPASS
+        try:
+            path = os.path.join(sys._MEIPASS, relative_path)
+            if os.path.exists(path):
+                return path
+        except AttributeError:
+            pass
+
+    # 2. Рядом со скриптом (обычный запуск)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, relative_path)
+
+
+SOUNDS_DIR = resource_path("sounds")
+# Отладка — удалите потом
+print(f"Ищу звуки в: {SOUNDS_DIR}")
+print(f"Папка существует: {os.path.exists(SOUNDS_DIR)}")
+if os.path.exists(SOUNDS_DIR):
+    print(f"Файлы в папке: {os.listdir(SOUNDS_DIR)}")
 
 # --- КОНСТАНТЫ ---
-WIDTH = 800
-HEIGHT = 600
+WIDTH = 850
+HEIGHT = 800
 FPS = 60
 
 # Цвета (Winter/Christmas Palette)
@@ -54,6 +91,35 @@ LEVELS = [
         [],
     ],
 ]
+
+# --- АУДИО ---
+SOUNDS = {}
+
+
+def load_sounds():
+    files = {
+        "flip": ["flip.wav", "flip.mp3"],
+        "win": ["hoho (win).wav", "hoho (win).mp3"],
+        "lose": ["break (lose).wav", "break (lose).mp3"],
+        "full": ["full glass.wav", "full glass.mp3"],
+    }
+
+    for name, filenames in files.items():
+        for filename in filenames:
+            # Используем абсолютный путь
+            sound_path = os.path.join(SOUNDS_DIR, filename)
+            if os.path.exists(sound_path):
+                try:
+                    SOUNDS[name] = pygame.mixer.Sound(sound_path)
+                    SOUNDS[name].set_volume(0.5)
+                    break
+                except Exception as e:
+                    print(f"Ошибка загрузки звука {sound_path}: {e}")
+
+
+def play_sfx(name):
+    if name in SOUNDS:
+        SOUNDS[name].play()
 
 
 # --- КЛАССЫ ---
@@ -134,6 +200,10 @@ class Tube:
             and len(set(self.content)) == 1
         ):
             self.completed = True
+
+            # --- Звук заполненной колбы ---
+            play_sfx("full")
+
             for _ in range(30):
                 self.particles.append(
                     Particle(self.rect.centerx, self.rect.top, COLORS[self.content[0]])
@@ -226,6 +296,8 @@ class GameManager:
                 if self.tubes[clicked_idx].content:
                     self.selected_idx = clicked_idx
                     self.tubes[clicked_idx].selected = True
+                    # --- Звук выбора/поднятия колбы ---
+                    play_sfx("flip")
             else:
                 src = self.selected_idx
                 dst = clicked_idx
@@ -233,16 +305,20 @@ class GameManager:
                 if src == dst:
                     self.tubes[src].selected = False
                     self.selected_idx = None
+                    # --- Звук опускания колбы ---
+                    play_sfx("flip")
                 else:
                     if self.try_pour(src, dst):
                         self.tubes[src].selected = False
                         self.selected_idx = None
                         self.check_win()
+                        play_sfx("flip") #переливание
                     else:
                         self.tubes[src].selected = False
                         if self.tubes[dst].content:
                             self.selected_idx = dst
                             self.tubes[dst].selected = True
+                            play_sfx("flip")
                         else:
                             self.selected_idx = None
 
@@ -286,6 +362,7 @@ class GameManager:
                 break
         if won:
             self.game_won = True
+            play_sfx("win")
 
     def next_level(self):
         if self.level_idx < len(LEVELS) - 1:
@@ -316,15 +393,15 @@ class GameManager:
         title_surf = self.font_title.render(f"Level {self.level_idx + 1}", True, C_TEXT)
         surface.blit(title_surf, (WIDTH // 2 - title_surf.get_width() // 2, 50))
 
-        # UI подсказки
+        # UI подсказки                                                                                       !!!!
         ui_surf = self.font_ui.render("R: Restart | ESC: Menu", True, (150, 150, 150))
-        surface.blit(ui_surf, (WIDTH - 200, 20))
+        surface.blit(ui_surf, (WIDTH - 260, 15))
 
         # Колбы
         for tube in self.tubes:
             tube.draw(surface)
 
-        # Win Screen
+        # Win Screen                                                                                      !!!!
         if self.game_won:
             overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 150))
@@ -351,6 +428,8 @@ def run():
         pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Christmas Water Sort Game 🧪🎄")
+    # --- ЗВУКИ ---
+    load_sounds()
     clock = pygame.time.Clock()
 
     # Шрифты

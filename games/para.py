@@ -97,8 +97,8 @@ SOUNDS = {}
 def load_sounds():
     files = {
         "flip": ["flip.wav", "flip.mp3"],
-        "win": ["win.wav", "win.mp3"],
-        "lose": ["lose.wav", "lose.mp3"],
+        "win": ["hoho (win).wav", "hoho (win).mp3"],
+        "lose": ["break (lose).wav", "break (lose).mp3"],
     }
 
     for name, filenames in files.items():
