@@ -3,6 +3,7 @@
 # рекорды
 highscore.txt
 santa_score.txt
+save_game.txt
 
 # Байт-код (компилированные файлы)
 __pycache__/

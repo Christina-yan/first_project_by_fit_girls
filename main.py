@@ -169,6 +169,23 @@ def check_music_loop():
             _current_track = "loop"
 
 
+def ensure_infinite_loop():
+    """
+    Если сейчас играет Intro, принудительно включает Loop в бесконечном режиме.
+    Это нужно вызывать перед запуском любой игры, чтобы музыка не заглохла.
+    """
+    global _current_track
+
+    # Если мы уже в режиме loop, ничего делать не надо
+    if _current_track == "loop":
+        return
+
+    # Если играет Intro (или вообще ничего), включаем Loop бесконечно
+    if "loop" in MUSIC_PATHS:
+        print("⚡ Принудительный переход на LOOP перед игрой")
+        pygame.mixer.music.load(MUSIC_PATHS["loop"])
+        pygame.mixer.music.play(-1)  # -1 = Бесконечно
+        _current_track = "loop"
 
 def play_sfx(name):
     if name in SOUNDS:
@@ -371,7 +388,7 @@ def main_menu():
                 for btn in menu_buttons:
                     if btn.check_hover(event.pos):
                         play_sfx("menu")
-                        # pygame.quit()  # Закрываем меню
+                        ensure_infinite_loop()
                         btn.game_func()  # Запускаем игру
                         # После выхода из игры — снова открываем меню
                         screen = pygame.display.set_mode((WIDTH, HEIGHT))
