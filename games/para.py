@@ -619,7 +619,7 @@ def run():
                 draw_text_center(t2, f_sub, 40, (255, 255, 255))
 
         pygame.display.flip()
-    pygame.quit()
+    return
 
 
 if __name__ == "__main__":

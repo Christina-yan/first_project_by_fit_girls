@@ -462,7 +462,7 @@ def run():
         pygame.display.flip()
         clock.tick(FPS)
 
-    pygame.quit()
+    return
 
 
 # Для запуска файла напрямую

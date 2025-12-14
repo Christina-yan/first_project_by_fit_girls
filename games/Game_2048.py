@@ -797,7 +797,7 @@ class Game_2048:
                 pygame.display.flip()
                 self.clock.tick(FPS)
 
-        pygame.quit()
+        return
 
 
 # ====== ВОТ ЭТО ГЛАВНОЕ — ФУНКЦИЯ ВНЕ КЛАССА ======

@@ -1146,7 +1146,7 @@ def run():
 
             pygame.display.flip()
 
-    pygame.quit()
+    return
 
 
 # Для запуска файла напрямую
