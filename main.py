@@ -2,12 +2,51 @@ import pygame
 import sys
 import random
 import math
+import os
 
 # Импортируем игры как модули
 from games import Game_2048, sort_water, para, flappy_bird
 
+
+def resource_path(relative_path):
+    """Ищем ресурсы рядом со скриптом или рядом с exe"""
+
+    # 1. Если запущено как exe
+    if getattr(sys, "frozen", False):
+        # Сначала рядом с exe
+        exe_dir = os.path.dirname(sys.executable)
+        path = os.path.join(exe_dir, "games", relative_path)
+        if os.path.exists(path):
+            return path
+
+        # Или просто рядом с exe
+        path = os.path.join(exe_dir, relative_path)
+        if os.path.exists(path):
+            return path
+
+        # Или в _MEIPASS
+        try:
+            path = os.path.join(sys._MEIPASS, relative_path)
+            if os.path.exists(path):
+                return path
+        except AttributeError:
+            pass
+
+    # 2. Рядом со скриптом (обычный запуск)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, relative_path)
+
+
+SOUNDS_DIR = resource_path("sounds-for-menu")
+# Отладка — удалите потом
+print(f"Ищу звуки в: {SOUNDS_DIR}")
+print(f"Папка существует: {os.path.exists(SOUNDS_DIR)}")
+if os.path.exists(SOUNDS_DIR):
+    print(f"Файлы в папке: {os.listdir(SOUNDS_DIR)}")
+
+
 # --- НАСТРОЙКИ И ИНИЦИАЛИЗАЦИЯ ---
-WIDTH, HEIGHT = 800, 600
+WIDTH, HEIGHT = 850, 700
 
 # --- ПАЛИТРА ---
 COLORS = {
@@ -21,6 +60,136 @@ COLORS = {
     "btn_border": (255, 200, 100),
     "shadow": (0, 0, 0, 100),
 }
+
+# --- АУДИО ---
+SOUNDS = {}
+MUSIC_PATHS = {}  # Пути к музыкальным файлам
+MUSIC_END_EVENT = pygame.USEREVENT + 1  # Кастомное событие
+music_state = "none"  # Текущее состояние: "none", "intro", "loop"
+
+# ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ МУЗЫКИ =====
+_music_initialized = False  # Загружены ли пути
+_intro_played = False  # Играло ли уже интро в этой сессии
+_current_track = "none"  # Что сейчас должно играть: 'intro', 'loop', 'none'
+
+
+def load_sounds_and_music():
+    """Загружает звуки и находит пути к музыке один раз"""
+    global _music_initialized, MUSIC_PATHS, SOUNDS
+
+    if _music_initialized:
+        return
+
+    # 1. Загрузка SFX
+    files_sfx = ["menu.wav", "menu.mp3"]
+    for filename in files_sfx:
+        path = os.path.join(SOUNDS_DIR, filename)
+        if os.path.exists(path):
+            try:
+                SOUNDS["menu"] = pygame.mixer.Sound(path)
+                SOUNDS["menu"].set_volume(0.3)
+                break
+            except Exception as e:
+                print(f"Ошибка sfx: {e}")
+
+    # 2. Поиск путей музыки
+    files_music = {
+        "intro": ["intro.wav", "intro.mp3", "intro.m4a", "intro.ogg"],
+        "loop": ["loop.wav", "loop.mp3", "loop.m4a", "loop.ogg"],
+    }
+
+    for name, filenames in files_music.items():
+        for filename in filenames:
+            path = os.path.join(SOUNDS_DIR, filename)
+            if os.path.exists(path):
+                MUSIC_PATHS[name] = path
+                print(f"Музыка найдена [{name}]: {filename}")
+                break
+
+    _music_initialized = True
+
+
+def start_global_music():
+    """Умный запуск музыки: Intro -> (Queue Loop) -> Loop"""
+    global _intro_played, _current_track
+
+    # 1. Если микшер выключен (например, игра сделала pygame.quit), инициализируем его
+    if not pygame.mixer.get_init():
+        try:
+            pygame.mixer.init()
+        except:
+            pass
+
+    # 2. Если музыка УЖЕ играет, ничего не трогаем (чтобы не было сброса при возврате в меню)
+    if pygame.mixer.music.get_busy():
+        return
+
+    # 3. Логика выбора трека
+    # Если интро есть и мы его еще не играли
+    if "intro" in MUSIC_PATHS and not _intro_played:
+        print("▶ Запуск: INTRO + очередь LOOP")
+        pygame.mixer.music.load(MUSIC_PATHS["intro"])
+        pygame.mixer.music.set_volume(0.5)
+        pygame.mixer.music.play()
+
+        # МАГИЯ: Ставим Loop в очередь сразу же!
+        # Когда Intro закончится, Pygame сам запустит Loop, даже если мы внутри игры 2048.
+        if "loop" in MUSIC_PATHS:
+            pygame.mixer.music.queue(MUSIC_PATHS["loop"])
+
+        _intro_played = True
+        _current_track = "intro"
+
+    # Если интро уже было или его нет -> сразу Loop
+    elif "loop" in MUSIC_PATHS:
+        print("▶ Запуск: LOOP (бесконечно)")
+        pygame.mixer.music.load(MUSIC_PATHS["loop"])
+        pygame.mixer.music.set_volume(0.5)
+        pygame.mixer.music.play(-1)  # -1 = бесконечный повтор
+        _current_track = "loop"
+
+
+def check_music_loop():
+    """
+    Эту функцию нужно вызывать в цикле меню.
+    Она проверяет, не закончилась ли 'очередь' и включает бесконечный повтор.
+    """
+    global _current_track
+
+    # Если мы думаем, что играем Intro, но музыка играет (значит, возможно, уже перешло на Loop из очереди),
+    # или музыка остановилась (очередь кончилась).
+    # Но надежнее всего: если Intro уже сыграло, мы должны убедиться, что играет Loop в режиме бесконечности.
+
+    if _intro_played and "loop" in MUSIC_PATHS:
+        # Если музыка вообще затихла (например, Loop из очереди проиграл 1 раз и кончился)
+        if not pygame.mixer.music.get_busy():
+            print("↺ Перезапуск LOOP (бесконечно)")
+            pygame.mixer.music.load(MUSIC_PATHS["loop"])
+            pygame.mixer.music.play(-1)
+            _current_track = "loop"
+
+
+def ensure_infinite_loop():
+    """
+    Если сейчас играет Intro, принудительно включает Loop в бесконечном режиме.
+    Это нужно вызывать перед запуском любой игры, чтобы музыка не заглохла.
+    """
+    global _current_track
+
+    # Если мы уже в режиме loop, ничего делать не надо
+    if _current_track == "loop":
+        return
+
+    # Если играет Intro (или вообще ничего), включаем Loop бесконечно
+    if "loop" in MUSIC_PATHS:
+        print("⚡ Принудительный переход на LOOP перед игрой")
+        pygame.mixer.music.load(MUSIC_PATHS["loop"])
+        pygame.mixer.music.play(-1)  # -1 = Бесконечно
+        _current_track = "loop"
+
+def play_sfx(name):
+    if name in SOUNDS:
+        SOUNDS[name].play()
 
 
 def get_font(size, bold=False):
@@ -134,11 +303,20 @@ class MenuButton:
 
 def init_menu():
     """Инициализация/реинициализация меню после возврата из игры"""
-    pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("🎄 Новогодний сборник игр 🎄")
-    clock = pygame.time.Clock()
+    global _first_init
 
+    if not pygame.get_init():
+        pygame.init()
+
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("🎄 Christmas games set 🎄")
+    # загружаем звкуки
+    load_sounds_and_music()
+
+    # Музыку запускаем (функция сама проверит, играет ли уже)
+    start_global_music()
+
+    clock = pygame.time.Clock()
     font_title = get_font(60, True)
     font_btn = get_font(36, True)
     font_footer = get_font(20)
@@ -194,9 +372,14 @@ def main_menu():
         screen.blit(t_shadow, (title_rect.x + 4, title_rect.y + 4))
         screen.blit(t_main, title_rect)
 
+        check_music_loop()
+
         # События
         mouse_pos = pygame.mouse.get_pos()
         for event in pygame.event.get():
+            # Обрабатываем событие окончания музыки
+            # handle_music_event(event)
+
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -204,13 +387,15 @@ def main_menu():
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 for btn in menu_buttons:
                     if btn.check_hover(event.pos):
-                        # pygame.quit()  # Закрываем меню
+                        play_sfx("menu")
+                        ensure_infinite_loop()
                         btn.game_func()  # Запускаем игру
                         # После выхода из игры — снова открываем меню
                         screen = pygame.display.set_mode((WIDTH, HEIGHT))
                         screen, clock, font_title, font_btn, font_footer = init_menu()
                         snow_system = [SnowFlake() for _ in range(100)]
                         garland = Garland()
+                        play_sfx("menu")
 
         # Кнопки
         for btn in menu_buttons:

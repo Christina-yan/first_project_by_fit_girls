@@ -4,8 +4,44 @@ import sys
 import os
 import math
 
+def resource_path(relative_path):
+    """Ищем ресурсы рядом со скриптом или рядом с exe"""
+
+    # 1. Если запущено как exe
+    if getattr(sys, "frozen", False):
+        # Сначала рядом с exe
+        exe_dir = os.path.dirname(sys.executable)
+        path = os.path.join(exe_dir, "games", relative_path)
+        if os.path.exists(path):
+            return path
+
+        # Или просто рядом с exe
+        path = os.path.join(exe_dir, relative_path)
+        if os.path.exists(path):
+            return path
+
+        # Или в _MEIPASS
+        try:
+            path = os.path.join(sys._MEIPASS, relative_path)
+            if os.path.exists(path):
+                return path
+        except AttributeError:
+            pass
+
+    # 2. Рядом со скриптом (обычный запуск)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, relative_path)
+
+
+SOUNDS_DIR = resource_path("sounds")
+# Отладка — удалите потом
+print(f"Ищу звуки в: {SOUNDS_DIR}")
+print(f"Папка существует: {os.path.exists(SOUNDS_DIR)}")
+if os.path.exists(SOUNDS_DIR):
+    print(f"Файлы в папке: {os.listdir(SOUNDS_DIR)}")
+
 # --- КОНСТАНТЫ ---
-WIDTH = 550
+WIDTH = 850
 HEIGHT = 800
 FPS = 60
 
@@ -16,7 +52,7 @@ C_MOON = (255, 255, 240)
 C_WHITE = (255, 255, 255)
 
 # Цвета Санты и Саней
-C_SLEIGH_BODY = (160, 10, 20)  # Темно-красные сани
+C_SLEIGH_BODY = (150, 20, 30)  # Темно-красные сани
 C_SLEIGH_TRIM = (218, 165, 32)  # Золотая отделка
 C_RUNNERS = (192, 192, 192)  # Серебряные полозья
 C_SANTA_RED = (220, 20, 60)  # Красная шуба
@@ -32,6 +68,35 @@ JUMP_FORCE = -6.5
 PIPE_SPEED = 3.5
 PIPE_GAP = 220
 PIPE_FREQ = 1600
+
+# --- АУДИО ---
+SOUNDS = {}
+
+
+def load_sounds():
+    files = {
+        "fly": ["santa fly.wav", "santa fly.mp3"],
+        # "win": ["hoho (win).wav", "hoho (win).mp3"],
+        "lose": ["break (lose).wav", "break (lose).mp3"],
+        "buster": ["santa take buster.wav", "santa take buster.mp3"],
+    }
+
+    for name, filenames in files.items():
+        for filename in filenames:
+            # Используем абсолютный путь
+            sound_path = os.path.join(SOUNDS_DIR, filename)
+            if os.path.exists(sound_path):
+                try:
+                    SOUNDS[name] = pygame.mixer.Sound(sound_path)
+                    SOUNDS[name].set_volume(0.5)
+                    break
+                except Exception as e:
+                    print(f"Ошибка загрузки звука {sound_path}: {e}")
+
+
+def play_sfx(name):
+    if name in SOUNDS:
+        SOUNDS[name].play()
 
 
 # --- КОНСТАНТЫ БУСТОВ ---
@@ -49,19 +114,19 @@ BOOST_SETTINGS = {
     BoostType.INVINCIBILITY: {
         "duration": BOOST_DURATION,
         "color": (100, 200, 255),
-        "name": "Неуязвимость",
+        "name": "invincibility",
         "icon": "🛡️",
     },
     BoostType.SLOW_TIME: {
         "duration": BOOST_DURATION,
         "color": (180, 100, 255),
-        "name": "Замедление",
+        "name": "slow time",
         "icon": "⏱️",
     },
     BoostType.SHRINK: {
         "duration": BOOST_DURATION,
         "color": (100, 255, 150),
-        "name": "Уменьшение",
+        "name": "shrink",
         "icon": "🔽",
     },
 }
@@ -265,6 +330,7 @@ class BoostManager:
             duration = BOOST_SETTINGS[boost_type]["duration"]
             self.active_boosts[boost_type] = pygame.time.get_ticks() + duration
             self._create_pickup_particles(BOOST_SETTINGS[boost_type]["color"])
+            play_sfx("buster")
 
     def is_active(self, boost_type):
         if boost_type in self.active_boosts:
@@ -510,6 +576,7 @@ class SantaPlayer:
     def jump(self):
         self.vel = JUMP_FORCE
         self.angle = 10
+        play_sfx("fly")
 
     def update_scale(self, boost_manager):
         """Обновление масштаба в зависимости от буста"""
@@ -803,6 +870,8 @@ def run():
         pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Santa's Sleigh Ride 🎅")
+    # --- ЗВУКИ ---
+    load_sounds()
     clock = pygame.time.Clock()
 
     font = pygame.font.SysFont("Arial", 24, bold=True)
@@ -942,6 +1011,7 @@ def run():
                         if hb.colliderect(p.top_rect) or hb.colliderect(p.bot_rect):
                             game_active = False
                             game_over = True
+                            play_sfx("lose")
 
                     if not p.passed and p.x < santa.rect.x:
                         score += 1
@@ -971,6 +1041,7 @@ def run():
                     if not is_invincible:
                         game_active = False
                         game_over = True
+                        play_sfx("lose")
                     else:
                         santa.rect.bottom = HEIGHT
                         santa.vel = 0
@@ -1075,7 +1146,7 @@ def run():
 
             pygame.display.flip()
 
-    pygame.quit()
+    return
 
 
 # Для запуска файла напрямую

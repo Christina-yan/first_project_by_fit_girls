@@ -5,8 +5,45 @@ import math
 import os
 import traceback
 
+def resource_path(relative_path):
+    """Ищем ресурсы рядом со скриптом или рядом с exe"""
+
+    # 1. Если запущено как exe
+    if getattr(sys, "frozen", False):
+        # Сначала рядом с exe
+        exe_dir = os.path.dirname(sys.executable)
+        path = os.path.join(exe_dir, "games", relative_path)
+        if os.path.exists(path):
+            return path
+
+        # Или просто рядом с exe
+        path = os.path.join(exe_dir, relative_path)
+        if os.path.exists(path):
+            return path
+
+        # Или в _MEIPASS
+        try:
+            path = os.path.join(sys._MEIPASS, relative_path)
+            if os.path.exists(path):
+                return path
+        except AttributeError:
+            pass
+
+    # 2. Рядом со скриптом (обычный запуск)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, relative_path)
+
+
+SOUNDS_DIR = resource_path("sounds")
+# Отладка — удалите потом
+print(f"Ищу звуки в: {SOUNDS_DIR}")
+print(f"Папка существует: {os.path.exists(SOUNDS_DIR)}")
+if os.path.exists(SOUNDS_DIR):
+    print(f"Файлы в папке: {os.listdir(SOUNDS_DIR)}")
+
 # --- КОНФИГУРАЦИЯ ---
-WIDTH, HEIGHT = 920, 700
+WIDTH = 920
+HEIGHT = 700
 GRID_SIZE = 4
 TILE_SIZE = 120
 GRID_PADDING = 16
@@ -74,6 +111,34 @@ PINE_PALETTE = {
     "snow": (240, 245, 255),
 }
 
+# --- АУДИО ---
+SOUNDS = {}
+
+
+def load_sounds():
+    files = {
+        "flip": ["flip.wav", "flip.mp3"],
+        "win": ["hoho (win).wav", "hoho (win).mp3"],
+        "lose": ["break (lose).wav", "break (lose).mp3"],
+        "menu": ["flip.wav", "flip.mp3"],
+    }
+
+    for name, filenames in files.items():
+        for filename in filenames:
+            # Используем абсолютный путь
+            sound_path = os.path.join(SOUNDS_DIR, filename)
+            if os.path.exists(sound_path):
+                try:
+                    SOUNDS[name] = pygame.mixer.Sound(sound_path)
+                    SOUNDS[name].set_volume(0.5)
+                    break
+                except Exception as e:
+                    print(f"Ошибка загрузки звука {sound_path}: {e}")
+
+
+def play_sfx(name):
+    if name in SOUNDS:
+        SOUNDS[name].play()
 
 # --- ПОМОЩНИКИ ---
 def get_font(names, size, is_bold=False):
@@ -351,6 +416,7 @@ class Button:
             self.st = "hover" if hov else "normal"
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1 and hov:
             self.st = "clicked"
+            play_sfx("menu")
             return True
         if e.type == pygame.MOUSEBUTTONUP:
             self.st = "hover" if hov else "normal"
@@ -377,6 +443,8 @@ class Game_2048:
             pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("2048: Exclusive Edition")
+        # --- ЗВУКИ ---
+        load_sounds()
         self.clock = pygame.time.Clock()
 
         f = "times new roman, arial, serif"
@@ -526,12 +594,16 @@ class Game_2048:
             return
         dx, dy = 0, 0
         if key == pygame.K_LEFT:
+            play_sfx("flip")
             dy = -1
         elif key == pygame.K_RIGHT:
+            play_sfx("flip")
             dy = 1
         elif key == pygame.K_UP:
+            play_sfx("flip")
             dx = -1
         elif key == pygame.K_DOWN:
+            play_sfx("flip")
             dx = 1
         else:
             return
@@ -561,8 +633,9 @@ class Game_2048:
                     self.best_score = self.score
                     self.save_best()
                 self.add_tile()
-                if self.check_over():
+                if self.check_over() and not self.game_over:
                     self.game_over = True
+                    play_sfx("lose")
         elif self.anim_state == "SPAWN":
             if self.pop_tile:
                 self.pop_tile["scale"] += POP_SPEED
@@ -724,7 +797,7 @@ class Game_2048:
                 pygame.display.flip()
                 self.clock.tick(FPS)
 
-        pygame.quit()
+        return
 
 
 # ====== ВОТ ЭТО ГЛАВНОЕ — ФУНКЦИЯ ВНЕ КЛАССА ======
