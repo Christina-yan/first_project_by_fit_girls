@@ -187,6 +187,7 @@ def ensure_infinite_loop():
         pygame.mixer.music.play(-1)  # -1 = Бесконечно
         _current_track = "loop"
 
+
 def play_sfx(name):
     if name in SOUNDS:
         SOUNDS[name].play()
@@ -320,12 +321,13 @@ def init_menu():
     font_title = get_font(60, True)
     font_btn = get_font(36, True)
     font_footer = get_font(20)
+    font_credits = get_font(26, True)  # Шрифт для "Made by Fit girls"
 
-    return screen, clock, font_title, font_btn, font_footer
+    return screen, clock, font_title, font_btn, font_footer, font_credits
 
 
 def main_menu():
-    screen, clock, font_title, font_btn, font_footer = init_menu()
+    screen, clock, font_title, font_btn, font_footer, font_credits = init_menu()
 
     # Кнопки с функциями игр
     buttons_data = [
@@ -392,7 +394,14 @@ def main_menu():
                         btn.game_func()  # Запускаем игру
                         # После выхода из игры — снова открываем меню
                         screen = pygame.display.set_mode((WIDTH, HEIGHT))
-                        screen, clock, font_title, font_btn, font_footer = init_menu()
+                        (
+                            screen,
+                            clock,
+                            font_title,
+                            font_btn,
+                            font_footer,
+                            font_credits,
+                        ) = init_menu()
                         snow_system = [SnowFlake() for _ in range(100)]
                         garland = Garland()
                         play_sfx("menu")
@@ -402,7 +411,16 @@ def main_menu():
             btn.check_hover(mouse_pos)
             btn.draw(screen, font_btn)
 
-        # Футер
+        # ========== НАДПИСЬ "Made by Fit girls" ==========
+        credits_text = "Made by Fit girls"
+        # Используем тот же offset_y что и у заголовка (полная синхронизация)
+        c_shadow = font_credits.render(credits_text, True, (0, 0, 0))
+        c_main = font_credits.render(credits_text, True, COLORS["gold"])
+        credits_rect = c_main.get_rect(center=(WIDTH // 2, HEIGHT - 70 + offset_y))
+        screen.blit(c_shadow, (credits_rect.x + 2, credits_rect.y + 2))
+        screen.blit(c_main, credits_rect)
+
+        # Футер (подсказка)
         ft = font_footer.render(
             "Select a game to start playing | ESC - exit", True, (150, 160, 180)
         )
