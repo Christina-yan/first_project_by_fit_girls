@@ -33,24 +33,19 @@ SCREEN_WIDTH = 850
 SCREEN_HEIGHT = 800
 FPS = 60
 
-# --- ПАЛИТРА ---
-COLOR_TOP = (180, 210, 240)
-COLOR_BOTTOM = (255, 255, 255)
-COLOR_UI_BAR = (40, 50, 80)
+# --- ПАЛИТРА "WINTER DUSK" (Зимние сумерки) ---
+COLOR_TOP = (60, 90, 140)
+COLOR_BOTTOM = (200, 225, 245)
+COLOR_UI_BAR = (30, 40, 65)
 COLOR_TEXT_MAIN = (255, 255, 255)
 COLOR_TEXT_ACCENT = (255, 215, 0)
 COLOR_TIMER_WARN = (255, 100, 100)
-
 COLOR_CARD_BACK = (200, 40, 50)
 COLOR_CARD_BORDER = (255, 255, 255)
 COLOR_SHADOW = (150, 160, 180)
-
 LIGHT_COLORS = [
-    (255, 60, 60),
-    (60, 255, 60),
-    (255, 220, 50),
-    (50, 150, 255),
-    (255, 100, 255),
+    (255, 60, 60), (60, 255, 60), (255, 220, 50),
+    (50, 150, 255), (255, 100, 255)
 ]
 
 # --- УРОВНИ ---
@@ -126,54 +121,194 @@ def load_all_images():
 ORIGINAL_IMAGES = []
 
 
-# --- ДЕКОР ---
+# --- ДЕКОР: УЮТНЫЙ ДОМИК В ЛЕСУ (COZY CABIN) ---
+
+def draw_pine_silhouette(screen, x, y, h, color):
+    w = h * 0.6
+    # Ствол
+    pygame.draw.rect(screen, (40, 30, 30), (x - w * 0.1, y + h - h * 0.2, w * 0.2, h * 0.2))
+    # Ветки (3 яруса треугольников)
+    points = [
+        [(x, y), (x - w * 0.3, y + h * 0.4), (x + w * 0.3, y + h * 0.4)],
+        [(x, y + h * 0.2), (x - w * 0.4, y + h * 0.65), (x + w * 0.4, y + h * 0.65)],
+        [(x, y + h * 0.4), (x - w * 0.5, y + h * 0.9), (x + w * 0.5, y + h * 0.9)]
+    ]
+    for p in points:
+        pygame.draw.polygon(screen, color, p)
+
+
+def draw_cozy_cabin(screen, x, y):
+    # 1. Сруб (Темное дерево)
+    wood_col = (70, 50, 40)
+    w, h = 140, 90
+    pygame.draw.rect(screen, wood_col, (x, y, w, h))
+    # Бревна (полоски)
+    for i in range(5):
+        pygame.draw.line(screen, (50, 35, 30), (x, y + i * 18), (x + w, y + i * 18), 2)
+
+    # 2. Крыша (Заснеженная)
+    roof_poly = [
+        (x - 20, y),  # Левый низ
+        (x + w / 2, y - 60),  # Верх
+        (x + w + 20, y)  # Правый низ
+    ]
+    # Тень крыши
+    pygame.draw.polygon(screen, (200, 210, 220), [(p[0], p[1] + 5) for p in roof_poly])
+    # Снег
+    pygame.draw.polygon(screen, (245, 250, 255), roof_poly)
+
+    # 3. Труба и Дым
+    chimney_x = x + w - 40
+    pygame.draw.rect(screen, (80, 50, 50), (chimney_x, y - 40, 25, 40))
+    pygame.draw.rect(screen, (255, 255, 255), (chimney_x - 2, y - 45, 29, 10))  # Снег на трубе
+
+    # Анимация дыма (простая, на основе времени)
+    t = pygame.time.get_ticks()
+    for i in range(3):
+        offset_y = (t * 0.05 + i * 40) % 100
+        alpha = max(0, 150 - offset_y * 1.5)
+        smoke_s = pygame.Surface((30, 30), pygame.SRCALPHA)
+        pygame.draw.circle(smoke_s, (255, 255, 255, int(alpha)), (15, 15), 10 + i * 2)
+        screen.blit(smoke_s, (chimney_x + 5 + math.sin(offset_y * 0.05) * 10, y - 40 - offset_y))
+
+    # 4. Окна
+    window_color = (255, 200, 50)  # Теплый янтарный
+
+    # Большое окно
+    wx, wy = x + 20, y + 25
+    pygame.draw.rect(screen, window_color, (wx, wy, 40, 40))
+    # Рама
+    pygame.draw.rect(screen, wood_col, (wx, wy, 40, 40), 3)
+    pygame.draw.line(screen, wood_col, (wx + 20, wy), (wx + 20, wy + 40), 2)
+    pygame.draw.line(screen, wood_col, (wx, wy + 20), (wx + 40, wy + 20), 2)
+
+    # Свет падает на снег перед окном
+    glow_s = pygame.Surface((80, 40), pygame.SRCALPHA)
+    pygame.draw.ellipse(glow_s, (255, 200, 50, 60), (0, 0, 80, 40))
+    screen.blit(glow_s, (wx - 20, wy + 40))
+
+    # Дверь
+    dx, dy = x + 85, y + 20
+    pygame.draw.rect(screen, (50, 30, 20), (dx, dy, 40, 70))  # Темная дверь
+    pygame.draw.circle(screen, (200, 180, 50), (dx + 32, dy + 35), 3)  # Ручка
+    # Венок на двери
+    pygame.draw.circle(screen, (40, 100, 50), (dx + 20, dy + 25), 10, 4)
+    pygame.draw.circle(screen, (200, 40, 40), (dx + 20, dy + 35), 3)  # Бантик
+
+
 def draw_decorations(screen):
-    pygame.draw.ellipse(screen, (245, 250, 255), (-100, SCREEN_HEIGHT - 120, SCREEN_WIDTH + 200, 200))
-    pygame.draw.ellipse(screen, (255, 255, 255), (SCREEN_WIDTH - 400, SCREEN_HEIGHT - 150, 500, 200))
+    # 1. Пейзаж (Холмы)
+    # Дальний план (темнее, сливается с небом)
+    pygame.draw.ellipse(screen, (160, 180, 210), (-100, SCREEN_HEIGHT - 220, SCREEN_WIDTH + 200, 300))
+    # Средний план
+    pygame.draw.ellipse(screen, (200, 215, 235), (200, SCREEN_HEIGHT - 180, SCREEN_WIDTH, 250))
+    # Передний план (самый светлый)
+    pygame.draw.ellipse(screen, (230, 240, 250), (-100, SCREEN_HEIGHT - 120, SCREEN_WIDTH + 400, 200))
 
-    tree_x = SCREEN_WIDTH - 100
-    tree_y = SCREEN_HEIGHT - 40
-    pygame.draw.rect(screen, (100, 60, 30), (tree_x - 10, tree_y - 40, 20, 40))
-    green = (34, 139, 34)
-    pygame.draw.polygon(screen, green, [(tree_x, tree_y - 110), (tree_x - 60, tree_y - 30), (tree_x + 60, tree_y - 30)])
-    pygame.draw.polygon(screen, green, [(tree_x, tree_y - 160), (tree_x - 50, tree_y - 70), (tree_x + 50, tree_y - 70)])
-    pygame.draw.polygon(screen, green,
-                        [(tree_x, tree_y - 200), (tree_x - 35, tree_y - 120), (tree_x + 35, tree_y - 120)])
-    pygame.draw.circle(screen, (255, 0, 0), (tree_x - 20, tree_y - 60), 5)
-    pygame.draw.circle(screen, (255, 215, 0), (tree_x + 15, tree_y - 90), 5)
-    pygame.draw.circle(screen, (50, 100, 255), (tree_x - 10, tree_y - 130), 5)
-    pygame.draw.circle(screen, (255, 215, 0), (tree_x, tree_y - 200), 8)
+    # 2. Лес на заднем плане (Силуэты)
+
+    # Слева (группа)
+    draw_pine_silhouette(screen, 50, SCREEN_HEIGHT - 280, 180, (40, 70, 80))  # Большая темная
+    draw_pine_silhouette(screen, 150, SCREEN_HEIGHT - 240, 140, (60, 90, 100))  # Поменьше
+    draw_pine_silhouette(screen, -20, SCREEN_HEIGHT - 220, 120, (50, 80, 90))
+
+    # Справа (группа)
+    draw_pine_silhouette(screen, SCREEN_WIDTH - 120, SCREEN_HEIGHT - 270, 190, (40, 70, 80))
+    draw_pine_silhouette(screen, SCREEN_WIDTH - 220, SCREEN_HEIGHT - 230, 130, (60, 90, 100))
+
+    # 3. ДОМИК
+    cabin_x = SCREEN_WIDTH - 280
+    cabin_y = SCREEN_HEIGHT - 160
+    draw_cozy_cabin(screen, cabin_x, cabin_y)
+
+    # 4. Фонарь рядом с домом
+    lamp_x = cabin_x - 60
+    lamp_y = cabin_y + 20
+    # Столб
+    pygame.draw.line(screen, (30, 30, 30), (lamp_x, lamp_y), (lamp_x, lamp_y + 70), 3)
+    # Лампа
+    pygame.draw.circle(screen, (255, 220, 100), (lamp_x, lamp_y), 8)
+    # Свечение фонаря
+    lamp_glow = pygame.Surface((40, 40), pygame.SRCALPHA)
+    pygame.draw.circle(lamp_glow, (255, 220, 100, 80), (20, 20), 18)
+    screen.blit(lamp_glow, (lamp_x - 20, lamp_y - 20))
+
+    # 5. Мелкие детали
+    # Сугробчики
+    pygame.draw.ellipse(screen, (255, 255, 255), (cabin_x - 80, cabin_y + 80, 100, 30))
+
+    # Снеговик (маленький)
+    sm_x, sm_y = cabin_x - 120, cabin_y + 60
+    pygame.draw.circle(screen, (250, 250, 255), (sm_x, sm_y), 15)  # Низ
+    pygame.draw.circle(screen, (250, 250, 255), (sm_x, sm_y - 20), 10)  # Верх
+    pygame.draw.polygon(screen, (200, 100, 50), [(sm_x, sm_y - 20), (sm_x + 10, sm_y - 18), (sm_x, sm_y - 16)])  # Нос
 
 
+# --- ГИРЛЯНДА (REALISTIC & AESTHETIC) ---
 class Garland:
     def __init__(self):
         self.bulbs = []
-        count = 18
+        count = 16
         step = SCREEN_WIDTH / count
         for i in range(count + 1):
             x = i * step
-            offset_y = abs(math.sin(i * 0.8)) * 20
-            base_y = 100
+            # Красивое провисание
+            offset_y = abs(math.sin(i * 0.8)) * 25
+            base_y = 110
             color = random.choice(LIGHT_COLORS)
-            self.bulbs.append({"x": x, "y": base_y + offset_y, "color": color, "phase": random.uniform(0, 6.28)})
+            self.bulbs.append({
+                'x': x,
+                'y': base_y + offset_y,
+                'color': color,
+                'phase': random.uniform(0, 6.28)  # Разная фаза мерцания
+            })
 
     def draw(self, screen, time_now):
+        # 1. Провод
         if len(self.bulbs) > 1:
-            points = [(b["x"], b["y"] - 4) for b in self.bulbs]
-            pygame.draw.lines(screen, (40, 50, 60), False, points, 2)
+            points = [(b['x'], b['y'] - 9) for b in self.bulbs]
+            # Рисуем дважды для объема провода
+            pygame.draw.lines(screen, (20, 30, 20), False, points, 3)
+            pygame.draw.lines(screen, (50, 60, 50), False, [(p[0], p[1] - 1) for p in points], 1)
 
         for b in self.bulbs:
-            brightness = (math.sin(time_now * 0.003 + b["phase"]) + 1) / 2
-            brightness = 0.5 + (brightness * 0.5)
-            r, g, bl = b["color"]
-            glow_r = 6 + int(brightness * 5)
-            glow_s = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
-            pygame.draw.circle(glow_s, (r, g, bl, int(80 * brightness)), (glow_r, glow_r), glow_r)
-            screen.blit(glow_s, (b["x"] - glow_r, b["y"] - glow_r))
-            pygame.draw.rect(screen, (30, 30, 40), (b["x"] - 2, b["y"] - 6, 4, 4))
-            final_col = (
-            min(255, int(r * brightness + 50)), min(255, int(g * brightness + 50)), min(255, int(bl * brightness + 50)))
-            pygame.draw.circle(screen, final_col, (b["x"], b["y"]), 4)
+            # Плавная пульсация (синус)
+            pulse = (math.sin(time_now * 0.004 + b['phase']) + 1) / 2
+            # Диапазон яркости от 0.4 до 1.0 (чтобы не гасли полностью)
+            brightness = 0.4 + (pulse * 0.6)
+
+            r, g, bl = b['color']
+
+            # --- ЦОКОЛЬ ---
+            # Маленький темный прямоугольник
+            pygame.draw.rect(screen, (30, 30, 40), (b['x'] - 3, b['y'] - 13, 6, 8), border_radius=2)
+
+            # --- СВЕЧЕНИЕ (ГЛАВНОЕ ИЗМЕНЕНИЕ) ---
+            # Мы рисуем два круга с ОЧЕНЬ низкой прозрачностью
+            # 1. Внешний ореол
+            glow_radius_outer = int(22 * brightness)
+            s_glow_out = pygame.Surface((glow_radius_outer * 2, glow_radius_outer * 2), pygame.SRCALPHA)
+            pygame.draw.circle(s_glow_out, (r, g, bl, 20), (glow_radius_outer, glow_radius_outer), glow_radius_outer)
+            screen.blit(s_glow_out, (b['x'] - glow_radius_outer, b['y'] - glow_radius_outer))
+
+            # 2. Внутренний ореол
+            glow_radius_inner = int(12 * brightness)
+            s_glow_in = pygame.Surface((glow_radius_inner * 2, glow_radius_inner * 2), pygame.SRCALPHA)
+            pygame.draw.circle(s_glow_in, (r, g, bl, 40), (glow_radius_inner, glow_radius_inner), glow_radius_inner)
+            screen.blit(s_glow_in, (b['x'] - glow_radius_inner, b['y'] - glow_radius_inner))
+
+            # --- ЛАМПОЧКА (СТЕКЛО) ---
+            bulb_radius = 6
+            # Цвет стекла (чуть темнее, когда яркость низкая)
+            glass_color = (
+                min(255, int(r * 0.8 + 50 * brightness)),
+                min(255, int(g * 0.8 + 50 * brightness)),
+                min(255, int(bl * 0.8 + 50 * brightness))
+            )
+            pygame.draw.circle(screen, glass_color, (b['x'], b['y']), bulb_radius)
+
+            # --- БЛИК ---
+            pygame.draw.circle(screen, (255, 255, 255, 200), (b['x'] - 2, b['y'] - 2), 2)
 
 
 class SnowFlake:
@@ -181,7 +316,7 @@ class SnowFlake:
         self.x = random.randint(0, SCREEN_WIDTH)
         self.y = random.randint(-50, SCREEN_HEIGHT)
         self.size = random.randint(4, 8)
-        self.speed = random.uniform(0.8, 2.0)
+        self.speed = random.uniform(0.4, 1.0)
         self.alpha = random.randint(150, 255)
 
     def update(self):
