@@ -10,42 +10,27 @@ from games import Game_2048, sort_water, para, flappy_bird
 
 def resource_path(relative_path):
     """Ищем ресурсы рядом со скриптом или рядом с exe"""
-
-    # 1. Если запущено как exe
     if getattr(sys, "frozen", False):
-        # Сначала рядом с exe
         exe_dir = os.path.dirname(sys.executable)
         path = os.path.join(exe_dir, "games", relative_path)
         if os.path.exists(path):
             return path
-
-        # Или просто рядом с exe
         path = os.path.join(exe_dir, relative_path)
         if os.path.exists(path):
             return path
-
-        # Или в _MEIPASS
         try:
             path = os.path.join(sys._MEIPASS, relative_path)
             if os.path.exists(path):
                 return path
         except AttributeError:
             pass
-
-    # 2. Рядом со скриптом (обычный запуск)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(script_dir, relative_path)
 
 
 SOUNDS_DIR = resource_path("sounds-for-menu")
-# Отладка — удалите потом
-print(f"Ищу звуки в: {SOUNDS_DIR}")
-print(f"Папка существует: {os.path.exists(SOUNDS_DIR)}")
-if os.path.exists(SOUNDS_DIR):
-    print(f"Файлы в папке: {os.listdir(SOUNDS_DIR)}")
 
-
-# --- НАСТРОЙКИ И ИНИЦИАЛИЗАЦИЯ ---
+# --- НАСТРОЙКИ ---
 WIDTH, HEIGHT = 850, 700
 
 # --- ПАЛИТРА ---
@@ -61,26 +46,66 @@ COLORS = {
     "shadow": (0, 0, 0, 100),
 }
 
+# ╔══════════════════════════════════════════════════════════════╗
+# ║           ТАЙМИНГИ ПОЯВЛЕНИЯ ЭЛЕМЕНТОВ (мс)                  ║
+# ║  Формат: (начало_появления, конец_появления)                 ║
+# ╚══════════════════════════════════════════════════════════════╝
+FADE_TIMINGS = {
+    "snow": (600, 2000),  # 0.6 - 2 сек
+    "garland": (2000, 3300),  # 1 - 3.3 сек
+    "title": (3700, 4700),  # 3.7 - 4.7 сек
+    "credits": (5000, 5500),  # 5.0 - 5.5 сек (Made by Fit girls)
+    "buttons": (6700, 7900),  # 6.7 - 7.9 сек
+    "footer": (7900, 8000),  # 7.9 - 8.0 сек
+}
+
+INTRO_DURATION = 8000  # 8 секунд - длительность интро музыки
+
 # --- АУДИО ---
 SOUNDS = {}
-MUSIC_PATHS = {}  # Пути к музыкальным файлам
-MUSIC_END_EVENT = pygame.USEREVENT + 1  # Кастомное событие
-music_state = "none"  # Текущее состояние: "none", "intro", "loop"
+MUSIC_PATHS = {}
+_music_initialized = False
+_intro_played = False
+_current_track = "none"
 
-# ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ МУЗЫКИ =====
-_music_initialized = False  # Загружены ли пути
-_intro_played = False  # Играло ли уже интро в этой сессии
-_current_track = "none"  # Что сейчас должно играть: 'intro', 'loop', 'none'
+
+def calculate_alpha(start_time, element_name, current_time):
+    """Вычисляет альфу (0-255) для элемента на основе времени"""
+    timing = FADE_TIMINGS.get(element_name, (0, 1000))
+    fade_start, fade_end = timing
+
+    elapsed = current_time - start_time
+
+    if elapsed < fade_start:
+        return 0
+    elif elapsed >= fade_end:
+        return 255
+    else:
+        # Плавная интерполяция (ease-out для более приятного эффекта)
+        progress = (elapsed - fade_start) / (fade_end - fade_start)
+        # Ease-out quad: прогресс ускоряется к концу
+        eased = 1 - (1 - progress) ** 2
+        return int(255 * eased)
+
+
+def is_intro_finished(start_time, current_time):
+    """Проверяет, закончилось ли интро"""
+    return (current_time - start_time) >= INTRO_DURATION
+
+
+def apply_surface_alpha(surface, alpha):
+    """Создает копию поверхности с примененной альфой"""
+    result = surface.copy()
+    result.set_alpha(alpha)
+    return result
 
 
 def load_sounds_and_music():
-    """Загружает звуки и находит пути к музыке один раз"""
     global _music_initialized, MUSIC_PATHS, SOUNDS
 
     if _music_initialized:
         return
 
-    # 1. Загрузка SFX
     files_sfx = ["menu.wav", "menu.mp3"]
     for filename in files_sfx:
         path = os.path.join(SOUNDS_DIR, filename)
@@ -92,7 +117,6 @@ def load_sounds_and_music():
             except Exception as e:
                 print(f"Ошибка sfx: {e}")
 
-    # 2. Поиск путей музыки
     files_music = {
         "intro": ["intro.wav", "intro.mp3", "intro.m4a", "intro.ogg"],
         "loop": ["loop.wav", "loop.mp3", "loop.m4a", "loop.ogg"],
@@ -110,58 +134,41 @@ def load_sounds_and_music():
 
 
 def start_global_music():
-    """Умный запуск музыки: Intro -> (Queue Loop) -> Loop"""
     global _intro_played, _current_track
 
-    # 1. Если микшер выключен (например, игра сделала pygame.quit), инициализируем его
     if not pygame.mixer.get_init():
         try:
             pygame.mixer.init()
         except:
             pass
 
-    # 2. Если музыка УЖЕ играет, ничего не трогаем (чтобы не было сброса при возврате в меню)
     if pygame.mixer.music.get_busy():
         return
 
-    # 3. Логика выбора трека
-    # Если интро есть и мы его еще не играли
     if "intro" in MUSIC_PATHS and not _intro_played:
         print("▶ Запуск: INTRO + очередь LOOP")
         pygame.mixer.music.load(MUSIC_PATHS["intro"])
         pygame.mixer.music.set_volume(0.5)
         pygame.mixer.music.play()
 
-        # МАГИЯ: Ставим Loop в очередь сразу же!
-        # Когда Intro закончится, Pygame сам запустит Loop, даже если мы внутри игры 2048.
         if "loop" in MUSIC_PATHS:
             pygame.mixer.music.queue(MUSIC_PATHS["loop"])
 
         _intro_played = True
         _current_track = "intro"
 
-    # Если интро уже было или его нет -> сразу Loop
     elif "loop" in MUSIC_PATHS:
         print("▶ Запуск: LOOP (бесконечно)")
         pygame.mixer.music.load(MUSIC_PATHS["loop"])
         pygame.mixer.music.set_volume(0.5)
-        pygame.mixer.music.play(-1)  # -1 = бесконечный повтор
+        pygame.mixer.music.play(-1)
         _current_track = "loop"
 
 
 def check_music_loop():
-    """
-    Эту функцию нужно вызывать в цикле меню.
-    Она проверяет, не закончилась ли 'очередь' и включает бесконечный повтор.
-    """
     global _current_track
 
-    # Если мы думаем, что играем Intro, но музыка играет (значит, возможно, уже перешло на Loop из очереди),
-    # или музыка остановилась (очередь кончилась).
-    # Но надежнее всего: если Intro уже сыграло, мы должны убедиться, что играет Loop в режиме бесконечности.
-
     if _intro_played and "loop" in MUSIC_PATHS:
-        # Если музыка вообще затихла (например, Loop из очереди проиграл 1 раз и кончился)
         if not pygame.mixer.music.get_busy():
             print("↺ Перезапуск LOOP (бесконечно)")
             pygame.mixer.music.load(MUSIC_PATHS["loop"])
@@ -170,22 +177,10 @@ def check_music_loop():
 
 
 def ensure_infinite_loop():
-    """
-    Если сейчас играет Intro, принудительно включает Loop в бесконечном режиме.
-    Это нужно вызывать перед запуском любой игры, чтобы музыка не заглохла.
-    """
     global _current_track
 
-    # Если мы уже в режиме loop, ничего делать не надо
     if _current_track == "loop":
         return
-
-    # Если играет Intro (или вообще ничего), включаем Loop бесконечно
-    if "loop" in MUSIC_PATHS:
-        print("⚡ Принудительный переход на LOOP перед игрой")
-        pygame.mixer.music.load(MUSIC_PATHS["loop"])
-        pygame.mixer.music.play(-1)  # -1 = Бесконечно
-        _current_track = "loop"
 
 
 def play_sfx(name):
@@ -219,13 +214,17 @@ class SnowFlake:
         if self.y > HEIGHT:
             self.reset()
 
-    def draw(self, surface):
+    def draw(self, surface, global_alpha=255):
+        if global_alpha <= 0:
+            return
+        # Комбинируем локальную и глобальную альфу
+        final_alpha = int(self.alpha * (global_alpha / 255))
         s = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
         pygame.draw.circle(
             s,
-            (*COLORS["snow"], self.alpha),
+            (*COLORS["snow"], final_alpha),
             (self.size // 2, self.size // 2),
-            self.size // 2,
+            self.size // 2,  # Было self.size, нужно self.size // 2
         )
         surface.blit(s, (self.x, self.y))
 
@@ -246,82 +245,174 @@ class Garland:
                 }
             )
 
-    def draw(self, surface):
+    def draw(self, surface, global_alpha=255):
+        if global_alpha <= 0:
+            return
+
+        # Создаем отдельную поверхность для гирлянды
+        garland_surf = pygame.Surface((WIDTH, 100), pygame.SRCALPHA)
+
+        # Провод
         points = [(b["x"], b["y"] - 5) for b in self.bulbs]
         if len(points) > 1:
-            pygame.draw.lines(surface, (50, 50, 50), False, points, 3)
+            pygame.draw.lines(
+                garland_surf, (50, 50, 50, global_alpha), False, points, 3
+            )
 
         t = pygame.time.get_ticks()
         for b in self.bulbs:
             intensity = (math.sin(t * 0.005 + b["phase"]) + 1) / 2
+
+            # Свечение
+            glow_alpha = int(50 * intensity * (global_alpha / 255))
             glow = pygame.Surface((20, 20), pygame.SRCALPHA)
-            pygame.draw.circle(glow, (*b["color"], int(50 * intensity)), (10, 10), 10)
-            surface.blit(glow, (b["x"] - 10, b["y"] - 5))
-            pygame.draw.circle(surface, b["color"], (b["x"], b["y"] + 5), 5)
-            pygame.draw.circle(surface, (255, 255, 255), (b["x"] - 2, b["y"] + 3), 2)
+            pygame.draw.circle(glow, (*b["color"], glow_alpha), (10, 10), 10)
+            garland_surf.blit(glow, (b["x"] - 10, b["y"] - 5))
+
+            # Лампочка
+            pygame.draw.circle(
+                garland_surf,
+                (*b["color"], global_alpha),
+                (int(b["x"]), int(b["y"]) + 5),
+                5,
+            )
+            # Блик
+            pygame.draw.circle(
+                garland_surf,
+                (255, 255, 255, global_alpha),
+                (int(b["x"]) - 2, int(b["y"]) + 3),
+                2,
+            )
+
+        surface.blit(garland_surf, (0, 0))
 
 
 class MenuButton:
     def __init__(self, text, rect, game_func):
         self.text = text
         self.rect = rect
-        self.game_func = game_func  # Теперь это функция, а не файл
+        self.game_func = game_func
         self.hovered = False
         self.anim_offset = 0
 
-    def draw(self, surface, font):
+    def draw(self, surface, font, alpha=255):
+        if alpha <= 0:
+            return
+
         target_offset = -4 if self.hovered else 0
         self.anim_offset += (target_offset - self.anim_offset) * 0.2
 
         bg_col = COLORS["btn_hover"] if self.hovered else COLORS["btn_base"]
         border_col = COLORS["gold"] if self.hovered else COLORS["btn_border"]
 
-        shadow_rect = self.rect.copy()
-        shadow_rect.y += 4
-        s_surf = pygame.Surface((shadow_rect.w, shadow_rect.h), pygame.SRCALPHA)
+        # Создаем поверхность для кнопки
+        btn_surf = pygame.Surface((self.rect.w + 10, self.rect.h + 15), pygame.SRCALPHA)
+
+        # Тень
+        shadow_alpha = int(100 * (alpha / 255))
+        shadow_rect = pygame.Rect(5, 9, self.rect.w, self.rect.h)
         pygame.draw.rect(
-            s_surf,
-            COLORS["shadow"],
-            (0, 0, shadow_rect.w, shadow_rect.h),
-            border_radius=15,
+            btn_surf, (0, 0, 0, shadow_alpha), shadow_rect, border_radius=15
         )
-        surface.blit(s_surf, shadow_rect)
 
-        draw_rect = self.rect.copy()
-        draw_rect.y += self.anim_offset
+        # Основная кнопка
+        draw_rect = pygame.Rect(5, 5 + self.anim_offset, self.rect.w, self.rect.h)
+        pygame.draw.rect(btn_surf, (*bg_col, alpha), draw_rect, border_radius=15)
+        pygame.draw.rect(btn_surf, (*border_col, alpha), draw_rect, 3, border_radius=15)
 
-        pygame.draw.rect(surface, bg_col, draw_rect, border_radius=15)
-        pygame.draw.rect(surface, border_col, draw_rect, 3, border_radius=15)
-
+        # Текст
         txt_surf = font.render(self.text, True, COLORS["text_main"])
+        txt_surf.set_alpha(alpha)
         txt_rect = txt_surf.get_rect(center=draw_rect.center)
-        surface.blit(txt_surf, txt_rect)
+        btn_surf.blit(txt_surf, txt_rect)
 
-    def check_hover(self, pos):
-        self.hovered = self.rect.collidepoint(pos)
+        surface.blit(btn_surf, (self.rect.x - 5, self.rect.y - 5))
+
+    def check_hover(self, pos, clickable=True):
+        if clickable:
+            self.hovered = self.rect.collidepoint(pos)
+        else:
+            self.hovered = False
         return self.hovered
 
 
-def init_menu():
-    """Инициализация/реинициализация меню после возврата из игры"""
-    global _first_init
+def draw_gradient_background(surface):
+    """Рисует градиентный фон"""
+    for y in range(HEIGHT):
+        ratio = y / HEIGHT
+        r = int(COLORS["bg_top"][0] * (1 - ratio) + COLORS["bg_bottom"][0] * ratio)
+        g = int(COLORS["bg_top"][1] * (1 - ratio) + COLORS["bg_bottom"][1] * ratio)
+        b = int(COLORS["bg_top"][2] * (1 - ratio) + COLORS["bg_bottom"][2] * ratio)
+        pygame.draw.line(surface, (r, g, b), (0, y), (WIDTH, y))
 
+
+def draw_title(surface, font, alpha):
+    """Рисует заголовок с альфой"""
+    if alpha <= 0:
+        return
+
+    title_text = "Christmas minigames"
+    offset_y = math.sin(pygame.time.get_ticks() * 0.002) * 5
+
+    # Рендерим текст
+    t_shadow = font.render(title_text, True, (0, 0, 0))
+    t_main = font.render(title_text, True, COLORS["gold"])
+
+    # Применяем альфу
+    t_shadow.set_alpha(alpha)
+    t_main.set_alpha(alpha)
+
+    title_rect = t_main.get_rect(center=(WIDTH // 2, 100 + offset_y))
+    surface.blit(t_shadow, (title_rect.x + 4, title_rect.y + 4))
+    surface.blit(t_main, title_rect)
+
+
+def draw_credits(surface, font, alpha):
+    """Рисует 'Made by Fit girls' с альфой"""
+    if alpha <= 0:
+        return
+
+    credits_text = "Made by Fit girls"
+    offset_y = math.sin(pygame.time.get_ticks() * 0.002) * 5
+
+    c_shadow = font.render(credits_text, True, (0, 0, 0))
+    c_main = font.render(credits_text, True, COLORS["gold"])
+
+    c_shadow.set_alpha(alpha)
+    c_main.set_alpha(alpha)
+
+    credits_rect = c_main.get_rect(center=(WIDTH // 2, HEIGHT - 70 + offset_y))
+    surface.blit(c_shadow, (credits_rect.x + 2, credits_rect.y + 2))
+    surface.blit(c_main, credits_rect)
+
+
+def draw_footer(surface, font, alpha):
+    """Рисует футер с альфой"""
+    if alpha <= 0:
+        return
+
+    ft = font.render(
+        "Select a game to start playing | ESC - exit", True, (150, 160, 180)
+    )
+    ft.set_alpha(alpha)
+    surface.blit(ft, ft.get_rect(center=(WIDTH // 2, HEIGHT - 30)))
+
+
+def init_menu():
+    """Инициализация меню"""
     if not pygame.get_init():
         pygame.init()
 
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("🎄 Christmas games set 🎄")
-    # загружаем звкуки
     load_sounds_and_music()
-
-    # Музыку запускаем (функция сама проверит, играет ли уже)
     start_global_music()
 
     clock = pygame.time.Clock()
     font_title = get_font(60, True)
     font_btn = get_font(36, True)
     font_footer = get_font(20)
-    font_credits = get_font(26, True)  # Шрифт для "Made by Fit girls"
+    font_credits = get_font(26, True)
 
     return screen, clock, font_title, font_btn, font_footer, font_credits
 
@@ -329,7 +420,10 @@ def init_menu():
 def main_menu():
     screen, clock, font_title, font_btn, font_footer, font_credits = init_menu()
 
-    # Кнопки с функциями игр
+    # ⏱️ Запоминаем время старта для анимации появления
+    menu_start_time = pygame.time.get_ticks()
+    is_first_launch = True  # Первый запуск = показываем анимацию
+
     buttons_data = [
         ("2048", Game_2048.run),
         ("Santa's Ride", flappy_bird.run),
@@ -351,80 +445,102 @@ def main_menu():
 
     running = True
     while running:
-        # Градиентный фон
-        for y in range(HEIGHT):
-            ratio = y / HEIGHT
-            r = COLORS["bg_top"][0] * (1 - ratio) + COLORS["bg_bottom"][0] * ratio
-            g = COLORS["bg_top"][1] * (1 - ratio) + COLORS["bg_bottom"][1] * ratio
-            b = COLORS["bg_top"][2] * (1 - ratio) + COLORS["bg_bottom"][2] * ratio
-            pygame.draw.line(screen, (r, g, b), (0, y), (WIDTH, y))
+        current_time = pygame.time.get_ticks()
 
-        # Декор
+        # ═══════════════════════════════════════════════════════
+        # 🎨 ВЫЧИСЛЯЕМ АЛЬФУ ДЛЯ КАЖДОГО ЭЛЕМЕНТА
+        # ═══════════════════════════════════════════════════════
+        if is_first_launch:
+            alpha_snow = calculate_alpha(menu_start_time, "snow", current_time)
+            alpha_garland = calculate_alpha(menu_start_time, "garland", current_time)
+            alpha_title = calculate_alpha(menu_start_time, "title", current_time)
+            alpha_credits = calculate_alpha(menu_start_time, "credits", current_time)
+            alpha_buttons = calculate_alpha(menu_start_time, "buttons", current_time)
+            alpha_footer = calculate_alpha(menu_start_time, "footer", current_time)
+
+        else:
+            # После возврата из игры - все сразу видно
+            alpha_snow = 255
+            alpha_garland = 255
+            alpha_title = 255
+            alpha_credits = 255
+            alpha_buttons = 255
+            alpha_footer = 255
+
+        # Кнопки кликабельны только после окончания интро
+        buttons_clickable = (
+            is_intro_finished(menu_start_time, current_time) or not is_first_launch
+        )
+
+        # ═══════════════════════════════════════════════════════
+        # 🖼️ ОТРИСОВКА
+        # ═══════════════════════════════════════════════════════
+
+        # 1. Градиентный фон (всегда виден)
+        draw_gradient_background(screen)
+
+        # 2. Снежинки
         for flake in snow_system:
             flake.update()
-            flake.draw(screen)
-        garland.draw(screen)
+            flake.draw(screen, alpha_snow)
 
-        # Заголовок
-        title_text = "Christmas minigames"
-        offset_y = math.sin(pygame.time.get_ticks() * 0.002) * 5
-        t_shadow = font_title.render(title_text, True, (0, 0, 0))
-        t_main = font_title.render(title_text, True, COLORS["gold"])
-        title_rect = t_main.get_rect(center=(WIDTH // 2, 100 + offset_y))
-        screen.blit(t_shadow, (title_rect.x + 4, title_rect.y + 4))
-        screen.blit(t_main, title_rect)
+        # 3. Гирлянда
+        garland.draw(screen, alpha_garland)
 
+        # 4. Заголовок
+        draw_title(screen, font_title, alpha_title)
+
+        # 5. Credits ("Made by Fit girls")
+        draw_credits(screen, font_credits, alpha_credits)
+
+        # 6. Кнопки
+        for btn in menu_buttons:
+            btn.check_hover(pygame.mouse.get_pos(), buttons_clickable)
+            btn.draw(screen, font_btn, alpha_buttons)
+
+        # 7. Футер
+        draw_footer(screen, font_footer, alpha_footer)
+
+        # Проверка музыки
         check_music_loop()
 
-        # События
-        mouse_pos = pygame.mouse.get_pos()
+        # ═══════════════════════════════════════════════════════
+        # ⌨️ СОБЫТИЯ
+        # ═══════════════════════════════════════════════════════
         for event in pygame.event.get():
-            # Обрабатываем событие окончания музыки
-            # handle_music_event(event)
-
             if event.type == pygame.QUIT:
                 running = False
+
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 running = False
+
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                for btn in menu_buttons:
-                    if btn.check_hover(event.pos):
-                        play_sfx("menu")
-                        ensure_infinite_loop()
-                        btn.game_func()  # Запускаем игру
-                        # После выхода из игры — снова открываем меню
-                        screen = pygame.display.set_mode((WIDTH, HEIGHT))
-                        (
-                            screen,
-                            clock,
-                            font_title,
-                            font_btn,
-                            font_footer,
-                            font_credits,
-                        ) = init_menu()
-                        snow_system = [SnowFlake() for _ in range(100)]
-                        garland = Garland()
-                        play_sfx("menu")
+                # Клик работает только если кнопки активны
+                if buttons_clickable:
+                    for btn in menu_buttons:
+                        if btn.check_hover(event.pos, True):
+                            play_sfx("menu")
+                            ensure_infinite_loop()
 
-        # Кнопки
-        for btn in menu_buttons:
-            btn.check_hover(mouse_pos)
-            btn.draw(screen, font_btn)
+                            # 🎮 Запускаем игру
+                            btn.game_func()
 
-        # ========== НАДПИСЬ "Made by Fit girls" ==========
-        credits_text = "Made by Fit girls"
-        # Используем тот же offset_y что и у заголовка (полная синхронизация)
-        c_shadow = font_credits.render(credits_text, True, (0, 0, 0))
-        c_main = font_credits.render(credits_text, True, COLORS["gold"])
-        credits_rect = c_main.get_rect(center=(WIDTH // 2, HEIGHT - 70 + offset_y))
-        screen.blit(c_shadow, (credits_rect.x + 2, credits_rect.y + 2))
-        screen.blit(c_main, credits_rect)
+                            # После выхода из игры - переинициализация
+                            screen = pygame.display.set_mode((WIDTH, HEIGHT))
+                            (
+                                screen,
+                                clock,
+                                font_title,
+                                font_btn,
+                                font_footer,
+                                font_credits,
+                            ) = init_menu()
+                            snow_system = [SnowFlake() for _ in range(100)]
+                            garland = Garland()
 
-        # Футер (подсказка)
-        ft = font_footer.render(
-            "Select a game to start playing | ESC - exit", True, (150, 160, 180)
-        )
-        screen.blit(ft, ft.get_rect(center=(WIDTH // 2, HEIGHT - 30)))
+                            # После возврата из игры анимация не нужна
+                            is_first_launch = False
+                            play_sfx("menu")
 
         pygame.display.flip()
         clock.tick(60)
