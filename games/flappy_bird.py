@@ -4,6 +4,7 @@ import sys
 import os
 import math
 
+
 def resource_path(relative_path):
     """Ищем ресурсы рядом со скриптом или рядом с exe"""
 
@@ -41,9 +42,11 @@ if os.path.exists(SOUNDS_DIR):
     print(f"Файлы в папке: {os.listdir(SOUNDS_DIR)}")
 
 # --- КОНСТАНТЫ ---
-WIDTH = 850
-HEIGHT = 800
+WIDTH = 550
+HEIGHT = 700
 FPS = 60
+
+os.environ["SDL_VIDEO_CENTERED"] = "1"  # Центрирует окно на экране
 
 # Палитра (Festive & Elegant)
 C_BG_TOP = (10, 15, 40)  # Ночное небо
