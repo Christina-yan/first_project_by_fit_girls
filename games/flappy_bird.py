@@ -28,13 +28,15 @@ def resource_path(relative_path):
 SOUNDS_DIR = resource_path("sounds")
 
 # --- КОНСТАНТЫ ---
-WIDTH = 850
-HEIGHT = 800
+WIDTH = 550
+HEIGHT = 700
 FPS = 60
 
-# Палитра
-C_BG_TOP = (10, 15, 40)
-C_BG_BOT = (50, 65, 100)
+os.environ["SDL_VIDEO_CENTERED"] = "1"  # Центрирует окно на экране
+
+# Палитра (Festive & Elegant)
+C_BG_TOP = (10, 15, 40)  # Ночное небо
+C_BG_BOT = (50, 65, 100)  # Горизонт
 C_MOON = (255, 255, 240)
 C_WHITE = (255, 255, 255)
 
