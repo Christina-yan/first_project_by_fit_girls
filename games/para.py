@@ -7,69 +7,45 @@ import os
 
 def resource_path(relative_path):
     """Ищем ресурсы рядом со скриптом или рядом с exe"""
-
-    # 1. Если запущено как exe
     if getattr(sys, "frozen", False):
-        # Сначала рядом с exe
         exe_dir = os.path.dirname(sys.executable)
         path = os.path.join(exe_dir, "games", relative_path)
         if os.path.exists(path):
             return path
-
-        # Или просто рядом с exe
         path = os.path.join(exe_dir, relative_path)
         if os.path.exists(path):
             return path
-
-        # Или в _MEIPASS
         try:
             path = os.path.join(sys._MEIPASS, relative_path)
             if os.path.exists(path):
                 return path
         except AttributeError:
             pass
-
-    # 2. Рядом со скриптом (обычный запуск)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(script_dir, relative_path)
 
 
 SOUNDS_DIR = resource_path("sounds")
 IMG_DIR = resource_path("img")
-# Отладка — удалите потом
-print(f"Ищу картинки в: {IMG_DIR}")
-print(f"Папка существует: {os.path.exists(IMG_DIR)}")
-print(f"Ищу звуки в: {SOUNDS_DIR}")
-print(f"Папка существует: {os.path.exists(SOUNDS_DIR)}")
-if os.path.exists(IMG_DIR):
-    print(f"Файлы в папке: {os.listdir(IMG_DIR)}")
-if os.path.exists(SOUNDS_DIR):
-    print(f"Файлы в папке: {os.listdir(SOUNDS_DIR)}")
 
 # --- КОНСТАНТЫ И НАСТРОЙКИ ---
-# Уменьшил размер окна, чтобы всё влезало
 SCREEN_WIDTH = 850
 SCREEN_HEIGHT = 800
 FPS = 60
 
-# --- ПАЛИТРА "WINTER MORNING" ---
-COLOR_TOP = (180, 210, 240)  # Голубой
-COLOR_BOTTOM = (255, 255, 255)  # Белый
-COLOR_UI_BAR = (40, 50, 80)  # Темно-синяя панель
+# --- ПАЛИТРА "WINTER DUSK" (Зимние сумерки) ---
+COLOR_TOP = (60, 90, 140)
+COLOR_BOTTOM = (200, 225, 245)
+COLOR_UI_BAR = (30, 40, 65)
 COLOR_TEXT_MAIN = (255, 255, 255)
 COLOR_TEXT_ACCENT = (255, 215, 0)
 COLOR_TIMER_WARN = (255, 100, 100)
-
 COLOR_CARD_BACK = (200, 40, 50)
 COLOR_CARD_BORDER = (255, 255, 255)
 COLOR_SHADOW = (150, 160, 180)
-
 LIGHT_COLORS = [
-    (255, 60, 60),
-    (60, 255, 60),
-    (255, 220, 50),
-    (50, 150, 255),
-    (255, 100, 255),
+    (255, 60, 60), (60, 255, 60), (255, 220, 50),
+    (50, 150, 255), (255, 100, 255)
 ]
 
 # --- УРОВНИ ---
@@ -81,9 +57,8 @@ LEVELS = [
     {"level": 5, "rows": 3, "cols": 6, "time": 90},
 ]
 
-# Отступы для сетки
-GRID_OFFSET_Y = 130  # Место под UI сверху
-GRID_MARGIN_BOTTOM = 100  # Место под елку снизу
+GRID_OFFSET_Y = 130
+GRID_MARGIN_BOTTOM = 100
 CARD_W = 0
 CARD_H = 0
 GAP = 15
@@ -100,10 +75,8 @@ def load_sounds():
         "win": ["hoho (win).wav", "hoho (win).mp3"],
         "lose": ["break (lose).wav", "break (lose).mp3"],
     }
-
     for name, filenames in files.items():
         for filename in filenames:
-            # Используем абсолютный путь
             sound_path = os.path.join(SOUNDS_DIR, filename)
             if os.path.exists(sound_path):
                 try:
@@ -111,7 +84,7 @@ def load_sounds():
                     SOUNDS[name].set_volume(0.5)
                     break
                 except Exception as e:
-                    print(f"Ошибка загрузки звука {sound_path}: {e}")
+                    pass
 
 
 def play_sfx(name):
@@ -122,14 +95,10 @@ def play_sfx(name):
 # --- КАРТИНКИ ---
 def load_all_images():
     images = []
-
-    # Проверяем существование папки с изображениями
     if not os.path.exists(IMG_DIR):
-        print(f"Предупреждение: Папка с изображениями не найдена: {IMG_DIR}")
         return images
 
     for i in range(1, 16):
-        # Проверяем оба формата с абсолютными путями
         for ext in [".png", ".jpg"]:
             img_path = os.path.join(IMG_DIR, f"{i}{ext}")
             if os.path.exists(img_path):
@@ -138,9 +107,8 @@ def load_all_images():
                     images.append(img)
                     break
                 except Exception as e:
-                    print(f"Ошибка загрузки изображения {img_path}: {e}")
+                    pass
 
-    # Если изображений недостаточно, создаем заглушки
     if len(images) < 9:
         for k in range(len(images), 15):
             s = pygame.Surface((200, 200))
@@ -153,121 +121,202 @@ def load_all_images():
 ORIGINAL_IMAGES = []
 
 
-# --- ДЕКОР: ЕЛКА И СУГРОБЫ ---
-def draw_decorations(screen):
-    # 1. Сугробы (Белые овалы внизу)
-    pygame.draw.ellipse(
-        screen, (245, 250, 255), (-100, SCREEN_HEIGHT - 120, SCREEN_WIDTH + 200, 200)
-    )
-    pygame.draw.ellipse(
-        screen, (255, 255, 255), (SCREEN_WIDTH - 400, SCREEN_HEIGHT - 150, 500, 200)
-    )
+# --- ДЕКОР: УЮТНЫЙ ДОМИК В ЛЕСУ (COZY CABIN) ---
 
-    # 2. Елочка (Справа внизу)
-    tree_x = SCREEN_WIDTH - 100
-    tree_y = SCREEN_HEIGHT - 40
-
+def draw_pine_silhouette(screen, x, y, h, color):
+    w = h * 0.6
     # Ствол
-    pygame.draw.rect(screen, (100, 60, 30), (tree_x - 10, tree_y - 40, 20, 40))
-
-    # Ветки (3 треугольника)
-    green = (34, 139, 34)
-    # Нижний ярус
-    pygame.draw.polygon(
-        screen,
-        green,
-        [
-            (tree_x, tree_y - 110),
-            (tree_x - 60, tree_y - 30),
-            (tree_x + 60, tree_y - 30),
-        ],
-    )
-    # Средний ярус
-    pygame.draw.polygon(
-        screen,
-        green,
-        [
-            (tree_x, tree_y - 160),
-            (tree_x - 50, tree_y - 70),
-            (tree_x + 50, tree_y - 70),
-        ],
-    )
-    # Верхний ярус
-    pygame.draw.polygon(
-        screen,
-        green,
-        [
-            (tree_x, tree_y - 200),
-            (tree_x - 35, tree_y - 120),
-            (tree_x + 35, tree_y - 120),
-        ],
-    )
-
-    # Шарики на елке
-    pygame.draw.circle(screen, (255, 0, 0), (tree_x - 20, tree_y - 60), 5)
-    pygame.draw.circle(screen, (255, 215, 0), (tree_x + 15, tree_y - 90), 5)
-    pygame.draw.circle(screen, (50, 100, 255), (tree_x - 10, tree_y - 130), 5)
-
-    # Звезда
-    pygame.draw.circle(screen, (255, 215, 0), (tree_x, tree_y - 200), 8)
+    pygame.draw.rect(screen, (40, 30, 30), (x - w * 0.1, y + h - h * 0.2, w * 0.2, h * 0.2))
+    # Ветки (3 яруса треугольников)
+    points = [
+        [(x, y), (x - w * 0.3, y + h * 0.4), (x + w * 0.3, y + h * 0.4)],
+        [(x, y + h * 0.2), (x - w * 0.4, y + h * 0.65), (x + w * 0.4, y + h * 0.65)],
+        [(x, y + h * 0.4), (x - w * 0.5, y + h * 0.9), (x + w * 0.5, y + h * 0.9)]
+    ]
+    for p in points:
+        pygame.draw.polygon(screen, color, p)
 
 
-# --- ГИРЛЯНДА ---
+def draw_cozy_cabin(screen, x, y):
+    # 1. Сруб (Темное дерево)
+    wood_col = (70, 50, 40)
+    w, h = 140, 90
+    pygame.draw.rect(screen, wood_col, (x, y, w, h))
+    # Бревна (полоски)
+    for i in range(5):
+        pygame.draw.line(screen, (50, 35, 30), (x, y + i * 18), (x + w, y + i * 18), 2)
+
+    # 2. Крыша (Заснеженная)
+    roof_poly = [
+        (x - 20, y),  # Левый низ
+        (x + w / 2, y - 60),  # Верх
+        (x + w + 20, y)  # Правый низ
+    ]
+    # Тень крыши
+    pygame.draw.polygon(screen, (200, 210, 220), [(p[0], p[1] + 5) for p in roof_poly])
+    # Снег
+    pygame.draw.polygon(screen, (245, 250, 255), roof_poly)
+
+    # 3. Труба и Дым
+    chimney_x = x + w - 40
+    pygame.draw.rect(screen, (80, 50, 50), (chimney_x, y - 40, 25, 40))
+    pygame.draw.rect(screen, (255, 255, 255), (chimney_x - 2, y - 45, 29, 10))  # Снег на трубе
+
+    # Анимация дыма (простая, на основе времени)
+    t = pygame.time.get_ticks()
+    for i in range(3):
+        offset_y = (t * 0.05 + i * 40) % 100
+        alpha = max(0, 150 - offset_y * 1.5)
+        smoke_s = pygame.Surface((30, 30), pygame.SRCALPHA)
+        pygame.draw.circle(smoke_s, (255, 255, 255, int(alpha)), (15, 15), 10 + i * 2)
+        screen.blit(smoke_s, (chimney_x + 5 + math.sin(offset_y * 0.05) * 10, y - 40 - offset_y))
+
+    # 4. Окна
+    window_color = (255, 200, 50)  # Теплый янтарный
+
+    # Большое окно
+    wx, wy = x + 20, y + 25
+    pygame.draw.rect(screen, window_color, (wx, wy, 40, 40))
+    # Рама
+    pygame.draw.rect(screen, wood_col, (wx, wy, 40, 40), 3)
+    pygame.draw.line(screen, wood_col, (wx + 20, wy), (wx + 20, wy + 40), 2)
+    pygame.draw.line(screen, wood_col, (wx, wy + 20), (wx + 40, wy + 20), 2)
+
+    # Свет падает на снег перед окном
+    glow_s = pygame.Surface((80, 40), pygame.SRCALPHA)
+    pygame.draw.ellipse(glow_s, (255, 200, 50, 60), (0, 0, 80, 40))
+    screen.blit(glow_s, (wx - 20, wy + 40))
+
+    # Дверь
+    dx, dy = x + 85, y + 20
+    pygame.draw.rect(screen, (50, 30, 20), (dx, dy, 40, 70))  # Темная дверь
+    pygame.draw.circle(screen, (200, 180, 50), (dx + 32, dy + 35), 3)  # Ручка
+    # Венок на двери
+    pygame.draw.circle(screen, (40, 100, 50), (dx + 20, dy + 25), 10, 4)
+    pygame.draw.circle(screen, (200, 40, 40), (dx + 20, dy + 35), 3)  # Бантик
+
+
+def draw_decorations(screen):
+    # 1. Пейзаж (Холмы)
+    # Дальний план (темнее, сливается с небом)
+    pygame.draw.ellipse(screen, (160, 180, 210), (-100, SCREEN_HEIGHT - 220, SCREEN_WIDTH + 200, 300))
+    # Средний план
+    pygame.draw.ellipse(screen, (200, 215, 235), (200, SCREEN_HEIGHT - 180, SCREEN_WIDTH, 250))
+    # Передний план (самый светлый)
+    pygame.draw.ellipse(screen, (230, 240, 250), (-100, SCREEN_HEIGHT - 120, SCREEN_WIDTH + 400, 200))
+
+    # 2. Лес на заднем плане (Силуэты)
+
+    # Слева (группа)
+    draw_pine_silhouette(screen, 50, SCREEN_HEIGHT - 280, 180, (40, 70, 80))  # Большая темная
+    draw_pine_silhouette(screen, 150, SCREEN_HEIGHT - 240, 140, (60, 90, 100))  # Поменьше
+    draw_pine_silhouette(screen, -20, SCREEN_HEIGHT - 220, 120, (50, 80, 90))
+
+    # Справа (группа)
+    draw_pine_silhouette(screen, SCREEN_WIDTH - 120, SCREEN_HEIGHT - 270, 190, (40, 70, 80))
+    draw_pine_silhouette(screen, SCREEN_WIDTH - 220, SCREEN_HEIGHT - 230, 130, (60, 90, 100))
+
+    # 3. ДОМИК
+    cabin_x = SCREEN_WIDTH - 280
+    cabin_y = SCREEN_HEIGHT - 160
+    draw_cozy_cabin(screen, cabin_x, cabin_y)
+
+    # 4. Фонарь рядом с домом
+    lamp_x = cabin_x - 60
+    lamp_y = cabin_y + 20
+    # Столб
+    pygame.draw.line(screen, (30, 30, 30), (lamp_x, lamp_y), (lamp_x, lamp_y + 70), 3)
+    # Лампа
+    pygame.draw.circle(screen, (255, 220, 100), (lamp_x, lamp_y), 8)
+    # Свечение фонаря
+    lamp_glow = pygame.Surface((40, 40), pygame.SRCALPHA)
+    pygame.draw.circle(lamp_glow, (255, 220, 100, 80), (20, 20), 18)
+    screen.blit(lamp_glow, (lamp_x - 20, lamp_y - 20))
+
+    # 5. Мелкие детали
+    # Сугробчики
+    pygame.draw.ellipse(screen, (255, 255, 255), (cabin_x - 80, cabin_y + 80, 100, 30))
+
+    # Снеговик (маленький)
+    sm_x, sm_y = cabin_x - 120, cabin_y + 60
+    pygame.draw.circle(screen, (250, 250, 255), (sm_x, sm_y), 15)  # Низ
+    pygame.draw.circle(screen, (250, 250, 255), (sm_x, sm_y - 20), 10)  # Верх
+    pygame.draw.polygon(screen, (200, 100, 50), [(sm_x, sm_y - 20), (sm_x + 10, sm_y - 18), (sm_x, sm_y - 16)])  # Нос
+
+
+# --- ГИРЛЯНДА (REALISTIC & AESTHETIC) ---
 class Garland:
     def __init__(self):
         self.bulbs = []
-        count = 18
+        count = 16
         step = SCREEN_WIDTH / count
         for i in range(count + 1):
             x = i * step
-            offset_y = abs(math.sin(i * 0.8)) * 20
-            base_y = 100  # Высота панели
+            # Красивое провисание
+            offset_y = abs(math.sin(i * 0.8)) * 25
+            base_y = 110
             color = random.choice(LIGHT_COLORS)
-            self.bulbs.append(
-                {
-                    "x": x,
-                    "y": base_y + offset_y,
-                    "color": color,
-                    "phase": random.uniform(0, 6.28),
-                }
-            )
+            self.bulbs.append({
+                'x': x,
+                'y': base_y + offset_y,
+                'color': color,
+                'phase': random.uniform(0, 6.28)  # Разная фаза мерцания
+            })
 
     def draw(self, screen, time_now):
+        # 1. Провод
         if len(self.bulbs) > 1:
-            points = [(b["x"], b["y"] - 4) for b in self.bulbs]
-            pygame.draw.lines(screen, (40, 50, 60), False, points, 2)
+            points = [(b['x'], b['y'] - 9) for b in self.bulbs]
+            # Рисуем дважды для объема провода
+            pygame.draw.lines(screen, (20, 30, 20), False, points, 3)
+            pygame.draw.lines(screen, (50, 60, 50), False, [(p[0], p[1] - 1) for p in points], 1)
 
         for b in self.bulbs:
-            brightness = (math.sin(time_now * 0.003 + b["phase"]) + 1) / 2
-            brightness = 0.5 + (brightness * 0.5)
-            r, g, bl = b["color"]
+            # Плавная пульсация (синус)
+            pulse = (math.sin(time_now * 0.004 + b['phase']) + 1) / 2
+            # Диапазон яркости от 0.4 до 1.0 (чтобы не гасли полностью)
+            brightness = 0.4 + (pulse * 0.6)
 
-            # Свечение
-            glow_r = 6 + int(brightness * 5)
-            glow_s = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
-            pygame.draw.circle(
-                glow_s, (r, g, bl, int(80 * brightness)), (glow_r, glow_r), glow_r
+            r, g, bl = b['color']
+
+            # --- ЦОКОЛЬ ---
+            # Маленький темный прямоугольник
+            pygame.draw.rect(screen, (30, 30, 40), (b['x'] - 3, b['y'] - 13, 6, 8), border_radius=2)
+
+            # --- СВЕЧЕНИЕ (ГЛАВНОЕ ИЗМЕНЕНИЕ) ---
+            # Мы рисуем два круга с ОЧЕНЬ низкой прозрачностью
+            # 1. Внешний ореол
+            glow_radius_outer = int(22 * brightness)
+            s_glow_out = pygame.Surface((glow_radius_outer * 2, glow_radius_outer * 2), pygame.SRCALPHA)
+            pygame.draw.circle(s_glow_out, (r, g, bl, 20), (glow_radius_outer, glow_radius_outer), glow_radius_outer)
+            screen.blit(s_glow_out, (b['x'] - glow_radius_outer, b['y'] - glow_radius_outer))
+
+            # 2. Внутренний ореол
+            glow_radius_inner = int(12 * brightness)
+            s_glow_in = pygame.Surface((glow_radius_inner * 2, glow_radius_inner * 2), pygame.SRCALPHA)
+            pygame.draw.circle(s_glow_in, (r, g, bl, 40), (glow_radius_inner, glow_radius_inner), glow_radius_inner)
+            screen.blit(s_glow_in, (b['x'] - glow_radius_inner, b['y'] - glow_radius_inner))
+
+            # --- ЛАМПОЧКА (СТЕКЛО) ---
+            bulb_radius = 6
+            # Цвет стекла (чуть темнее, когда яркость низкая)
+            glass_color = (
+                min(255, int(r * 0.8 + 50 * brightness)),
+                min(255, int(g * 0.8 + 50 * brightness)),
+                min(255, int(bl * 0.8 + 50 * brightness))
             )
-            screen.blit(glow_s, (b["x"] - glow_r, b["y"] - glow_r))
+            pygame.draw.circle(screen, glass_color, (b['x'], b['y']), bulb_radius)
 
-            pygame.draw.rect(screen, (30, 30, 40), (b["x"] - 2, b["y"] - 6, 4, 4))
-            final_col = (
-                min(255, int(r * brightness + 50)),
-                min(255, int(g * brightness + 50)),
-                min(255, int(bl * brightness + 50)),
-            )
-            pygame.draw.circle(screen, final_col, (b["x"], b["y"]), 4)
+            # --- БЛИК ---
+            pygame.draw.circle(screen, (255, 255, 255, 200), (b['x'] - 2, b['y'] - 2), 2)
 
 
-# --- ЭФФЕКТЫ ---
 class SnowFlake:
     def __init__(self):
         self.x = random.randint(0, SCREEN_WIDTH)
         self.y = random.randint(-50, SCREEN_HEIGHT)
-        # Увеличил размер
         self.size = random.randint(4, 8)
-        self.speed = random.uniform(0.8, 2.0)
-        # Сделал белее и заметнее
+        self.speed = random.uniform(0.4, 1.0)
         self.alpha = random.randint(150, 255)
 
     def update(self):
@@ -278,12 +327,7 @@ class SnowFlake:
 
     def draw(self, screen):
         s = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
-        pygame.draw.circle(
-            s,
-            (255, 255, 255, self.alpha),
-            (self.size // 2, self.size // 2),
-            self.size // 2,
-        )
+        pygame.draw.circle(s, (255, 255, 255, self.alpha), (self.size // 2, self.size // 2), self.size // 2)
         screen.blit(s, (self.x, self.y))
 
 
@@ -302,19 +346,11 @@ class Sparkle:
 
     def draw(self, screen):
         if self.life > 0:
-            s = pygame.Surface(
-                (int(self.size) * 2, int(self.size) * 2), pygame.SRCALPHA
-            )
-            pygame.draw.circle(
-                s,
-                (255, 215, 0, self.life),
-                (int(self.size), int(self.size)),
-                int(self.size),
-            )
+            s = pygame.Surface((int(self.size) * 2, int(self.size) * 2), pygame.SRCALPHA)
+            pygame.draw.circle(s, (255, 215, 0, self.life), (int(self.size), int(self.size)), int(self.size))
             screen.blit(s, (self.x - self.size, self.y - self.size))
 
 
-# --- КАРТА ---
 class Card:
     def __init__(self, r, c, img_idx, image_surface):
         self.r, self.c = r, c
@@ -333,11 +369,7 @@ class Card:
         self.y += (self.target_y - self.y) * 0.12
         self.rect.y = int(self.y)
         self.rect.x = int(self.target_x)
-        if (
-            self.rect.collidepoint(mouse_pos)
-            and not self.is_flipped
-            and not self.is_solved
-        ):
+        if self.rect.collidepoint(mouse_pos) and not self.is_flipped and not self.is_solved:
             self.hovered = True
         else:
             self.hovered = False
@@ -346,9 +378,7 @@ class Card:
         dy = self.y - 8 if self.hovered else self.y
         draw_rect = pygame.Rect(self.x, dy, CARD_W, CARD_H)
         s_surf = pygame.Surface((CARD_W, CARD_H), pygame.SRCALPHA)
-        pygame.draw.rect(
-            s_surf, (*COLOR_SHADOW, 100), (0, 0, CARD_W, CARD_H), border_radius=12
-        )
+        pygame.draw.rect(s_surf, (*COLOR_SHADOW, 100), (0, 0, CARD_W, CARD_H), border_radius=12)
         screen.blit(s_surf, (self.x + 5, dy + 5))
 
         if self.is_flipped or self.is_solved:
@@ -357,28 +387,16 @@ class Card:
                 ir = self.image.get_rect(center=draw_rect.center)
                 screen.blit(self.image, ir)
             if self.is_solved:
-                pygame.draw.rect(
-                    screen, (255, 215, 0), draw_rect, width=5, border_radius=12
-                )
+                pygame.draw.rect(screen, (255, 215, 0), draw_rect, width=5, border_radius=12)
             else:
-                pygame.draw.rect(
-                    screen, (200, 200, 200), draw_rect, width=2, border_radius=12
-                )
+                pygame.draw.rect(screen, (200, 200, 200), draw_rect, width=2, border_radius=12)
         else:
             col = (220, 50, 60) if self.hovered else COLOR_CARD_BACK
             pygame.draw.rect(screen, col, draw_rect, border_radius=12)
             cx, cy = draw_rect.centerx, draw_rect.centery
-            pygame.draw.rect(
-                screen, (255, 215, 0), (cx - CARD_W * 0.08, dy, CARD_W * 0.16, CARD_H)
-            )
-            pygame.draw.rect(
-                screen,
-                (255, 215, 0),
-                (self.x, cy - CARD_H * 0.08, CARD_W, CARD_H * 0.16),
-            )
-            pygame.draw.rect(
-                screen, (255, 255, 255), draw_rect, width=2, border_radius=12
-            )
+            pygame.draw.rect(screen, (255, 215, 0), (cx - CARD_W * 0.08, dy, CARD_W * 0.16, CARD_H))
+            pygame.draw.rect(screen, (255, 215, 0), (self.x, cy - CARD_H * 0.08, CARD_W, CARD_H * 0.16))
+            pygame.draw.rect(screen, (255, 255, 255), draw_rect, width=2, border_radius=12)
 
 
 # --- SETUP ---
@@ -386,27 +404,20 @@ def setup_level(level_index):
     global CARD_W, CARD_H, START_X, START_Y, GAP
     lvl = LEVELS[level_index]
     rows, cols = lvl["rows"], lvl["cols"]
-
-    # Доступное место (учитываем отступ сверху и снизу для декора)
     avail_w = SCREEN_WIDTH - 60
     avail_h = SCREEN_HEIGHT - GRID_OFFSET_Y - GRID_MARGIN_BOTTOM
-
     opt_w = (avail_w - GAP * (cols - 1)) // cols
     opt_h = (avail_h - GAP * (rows - 1)) // rows
     size = min(opt_w, opt_h)
     size = min(size, 140)
-
     CARD_W, CARD_H = size, size
     grid_w = cols * CARD_W + (cols - 1) * GAP
     grid_h = rows * CARD_H + (rows - 1) * GAP
-
     START_X = (SCREEN_WIDTH - grid_w) // 2
     START_Y = GRID_OFFSET_Y + (avail_h - grid_h) // 2
-
     num_pairs = (rows * cols) // 2
     deck = list(range(num_pairs)) * 2
     random.shuffle(deck)
-
     cards = []
     cache = {}
     for r in range(rows):
@@ -420,6 +431,29 @@ def setup_level(level_index):
     return cards, lvl["time"]
 
 
+# --- ФУНКЦИЯ ДЛЯ КРАСИВОГО ТЕКСТА (ПРОФЕССИОНАЛЬНЫЙ ВИД) ---
+def draw_pro_text(surface, text, font, center_pos, color=(255, 255, 255)):
+    # 1. Тень (мягкая)
+    shadow_surf = font.render(text, True, (0, 0, 0))
+    shadow_surf.set_alpha(120)
+    shadow_rect = shadow_surf.get_rect(center=(center_pos[0] + 3, center_pos[1] + 3))
+    surface.blit(shadow_surf, shadow_rect)
+
+    # 2. Обводка (легкая, для читаемости)
+    # Рисуем текст черным цветом со смещением на 1 пиксель во все стороны
+    offsets = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
+    for dx, dy in offsets:
+        outline = font.render(text, True, (0, 0, 0))
+        outline.set_alpha(150)
+        r = outline.get_rect(center=(center_pos[0] + dx, center_pos[1] + dy))
+        surface.blit(outline, r)
+
+    # 3. Основной текст
+    text_surf = font.render(text, True, color)
+    text_rect = text_surf.get_rect(center=center_pos)
+    surface.blit(text_surf, text_rect)
+
+
 # --- MAIN ---
 def run():
     global ORIGINAL_IMAGES
@@ -427,7 +461,6 @@ def run():
         pygame.init()
     load_sounds()
 
-    # Окно поменьше
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Winter Memory")
     clock = pygame.time.Clock()
@@ -436,13 +469,29 @@ def run():
     garland = Garland()
 
     try:
-        f_ui = pygame.font.SysFont("arial", 28, bold=True)  # Чуть меньше шрифт
+        f_ui = pygame.font.SysFont("arial", 28, bold=True)
         f_big = pygame.font.SysFont("georgia", 70, bold=True)
-        f_sub = pygame.font.SysFont("georgia", 36)
+        f_sub = pygame.font.SysFont("georgia", 36)  # Чуть крупнее для счета
+        f_small = pygame.font.SysFont("arial", 22, bold=True)
     except:
         f_ui = pygame.font.Font(None, 30)
         f_big = pygame.font.Font(None, 70)
         f_sub = pygame.font.Font(None, 36)
+        f_small = pygame.font.Font(None, 24)
+
+    lose_image = None
+    win_image = None
+
+    try:
+        l_path = resource_path(os.path.join("Win_Lose_screen", "Lose.png"))
+        if os.path.exists(l_path):
+            lose_image = pygame.image.load(l_path).convert_alpha()
+
+        w_path = resource_path(os.path.join("Win_Lose_screen", "Win.png"))
+        if os.path.exists(w_path):
+            win_image = pygame.image.load(w_path).convert_alpha()
+    except Exception as e:
+        pass
 
     curr_lvl = 0
     cards = []
@@ -451,11 +500,15 @@ def run():
     state = "START"
     sel = []
     parts = []
-    # Больше снежинок
     snow = [SnowFlake() for _ in range(180)]
     block = False
     timer_check = 0
     last_time = pygame.time.get_ticks()
+
+    # Анимация
+    blur_bg = None
+    # Используем float для очень плавной анимации (0.0 -> 1.0)
+    anim_progress = 0.0
 
     running = True
     while running:
@@ -468,33 +521,30 @@ def run():
             if e.type == pygame.QUIT:
                 running = False
 
-            # === ВЫХОД ПО ESC ===
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
                     running = False
 
             if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                # В конце анимации можно кликать
+                animation_done = (anim_progress >= 1.0) if (state in ["LEVEL_DONE", "GAME_OVER", "WIN"]) else True
+
                 if state == "START":
                     curr_lvl, score = 0, 0
                     cards, time_left = setup_level(curr_lvl)
                     state = "PLAY"
-                elif state == "LEVEL_DONE":
+                elif state == "LEVEL_DONE" and animation_done:
                     curr_lvl += 1
                     if curr_lvl >= len(LEVELS):
-                        state = "WIN"
-                        play_sfx("win")
+                        state = "START"
                     else:
                         cards, time_left = setup_level(curr_lvl)
                         state = "PLAY"
-                elif state in ["GAME_OVER", "WIN"]:
+                elif state == "GAME_OVER" and animation_done:
                     state = "START"
                 elif state == "PLAY" and not block:
                     for c in cards:
-                        if (
-                            c.rect.collidepoint(mpos)
-                            and not c.is_flipped
-                            and not c.is_solved
-                        ):
+                        if c.rect.collidepoint(mpos) and not c.is_flipped and not c.is_solved:
                             c.is_flipped = True
                             play_sfx("flip")
                             sel.append(c)
@@ -510,6 +560,13 @@ def run():
             if time_left <= 0:
                 time_left = 0
                 state = "GAME_OVER"
+                anim_progress = 0.0  # Сброс анимации
+                try:
+                    snapshot = screen.copy()
+                    small = pygame.transform.smoothscale(snapshot, (SCREEN_WIDTH // 10, SCREEN_HEIGHT // 10))
+                    blur_bg = pygame.transform.smoothscale(small, (SCREEN_WIDTH, SCREEN_HEIGHT))
+                except:
+                    blur_bg = None
                 play_sfx("lose")
 
             if block and (now - timer_check > 700):
@@ -530,6 +587,13 @@ def run():
 
             if all(c.is_solved for c in cards):
                 state = "LEVEL_DONE"
+                anim_progress = 0.0  # Сброс анимации
+                try:
+                    snapshot = screen.copy()
+                    small = pygame.transform.smoothscale(snapshot, (SCREEN_WIDTH // 10, SCREEN_HEIGHT // 10))
+                    blur_bg = pygame.transform.smoothscale(small, (SCREEN_WIDTH, SCREEN_HEIGHT))
+                except:
+                    blur_bg = None
                 play_sfx("win")
 
         for c in cards:
@@ -541,50 +605,29 @@ def run():
 
         # --- ОТРИСОВКА ---
 
-        # 1. Фон
-        for i in range(SCREEN_HEIGHT):
-            r = COLOR_TOP[0] + (COLOR_BOTTOM[0] - COLOR_TOP[0]) * i / SCREEN_HEIGHT
-            g = COLOR_TOP[1] + (COLOR_BOTTOM[1] - COLOR_TOP[1]) * i / SCREEN_HEIGHT
-            b = COLOR_TOP[2] + (COLOR_BOTTOM[2] - COLOR_TOP[2]) * i / SCREEN_HEIGHT
-            pygame.draw.line(screen, (r, g, b), (0, i), (SCREEN_WIDTH, i))
+        if state == "PLAY":
+            for i in range(SCREEN_HEIGHT):
+                r = COLOR_TOP[0] + (COLOR_BOTTOM[0] - COLOR_TOP[0]) * i / SCREEN_HEIGHT
+                g = COLOR_TOP[1] + (COLOR_BOTTOM[1] - COLOR_TOP[1]) * i / SCREEN_HEIGHT
+                b = COLOR_TOP[2] + (COLOR_BOTTOM[2] - COLOR_TOP[2]) * i / SCREEN_HEIGHT
+                pygame.draw.line(screen, (r, g, b), (0, i), (SCREEN_WIDTH, i))
+            for s in snow: s.draw(screen)
+            draw_decorations(screen)
+            pygame.draw.rect(screen, COLOR_UI_BAR, (0, 0, SCREEN_WIDTH, 100))
+            pygame.draw.line(screen, (255, 215, 0), (0, 100), (SCREEN_WIDTH, 100), 4)
+            txt_lvl = f_ui.render(f"LEVEL {curr_lvl + 1}/{len(LEVELS)}", True, COLOR_TEXT_MAIN)
+            txt_score = f_ui.render(f"SCORE: {int(score)}", True, COLOR_TEXT_ACCENT)
+            col_t = COLOR_TIMER_WARN if time_left < 10 else COLOR_TEXT_MAIN
+            txt_time = f_ui.render(f"TIME: {int(time_left)}", True, col_t)
+            screen.blit(txt_lvl, (30, 35))
+            screen.blit(txt_score, (SCREEN_WIDTH // 2 - txt_score.get_width() // 2, 35))
+            screen.blit(txt_time, (SCREEN_WIDTH - 130, 35))
+            garland.draw(screen, now)
+            for c in cards: c.draw(screen)
+            for p in parts: p.draw(screen)
 
-        # 2. Снег (Сзади)
-        for s in snow:
-            s.draw(screen)
-
-        # 3. ЕЛКА И СУГРОБЫ (Перед снегом, но за картами)
-        draw_decorations(screen)
-
-        # 4. UI Панель (Темная полоса)
-        pygame.draw.rect(screen, COLOR_UI_BAR, (0, 0, SCREEN_WIDTH, 100))
-        pygame.draw.line(screen, (255, 215, 0), (0, 100), (SCREEN_WIDTH, 100), 4)
-
-        txt_lvl = f_ui.render(
-            f"LEVEL {curr_lvl + 1}/{len(LEVELS)}", True, COLOR_TEXT_MAIN
-        )
-        txt_score = f_ui.render(f"SCORE: {int(score)}", True, COLOR_TEXT_ACCENT)
-        col_t = COLOR_TIMER_WARN if time_left < 10 else COLOR_TEXT_MAIN
-        txt_time = f_ui.render(f"TIME: {int(time_left)}", True, col_t)
-
-        # Позиции текста
-        screen.blit(txt_lvl, (30, 35))
-        screen.blit(txt_score, (SCREEN_WIDTH // 2 - txt_score.get_width() // 2, 35))
-        screen.blit(txt_time, (SCREEN_WIDTH - 130, 35))
-
-        # 5. Гирлянда
-        garland.draw(screen, now)
-
-        # 6. Карты
-        for c in cards:
-            c.draw(screen)
-        for p in parts:
-            p.draw(screen)
-
-        # 7. Окна меню
+        # 7. Оверлеи и меню
         if state != "PLAY":
-            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-            overlay.fill((20, 30, 60, 200))
-            screen.blit(overlay, (0, 0))
             cx, cy = SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2
 
             def draw_text_center(txt, font, y, color):
@@ -592,31 +635,109 @@ def run():
                 screen.blit(txt, r)
 
             if state == "START":
+                for i in range(SCREEN_HEIGHT):
+                    r = COLOR_TOP[0] + (COLOR_BOTTOM[0] - COLOR_TOP[0]) * i / SCREEN_HEIGHT
+                    g = COLOR_TOP[1] + (COLOR_BOTTOM[1] - COLOR_TOP[1]) * i / SCREEN_HEIGHT
+                    b = COLOR_TOP[2] + (COLOR_BOTTOM[2] - COLOR_TOP[2]) * i / SCREEN_HEIGHT
+                    pygame.draw.line(screen, (r, g, b), (0, i), (SCREEN_WIDTH, i))
+                for s in snow: s.draw(screen)
+                draw_decorations(screen)
+                garland.draw(screen, now)
+                overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                overlay.fill((20, 30, 60, 200))
+                screen.blit(overlay, (0, 0))
                 t1 = f_big.render("WINTER MEMORY", True, (255, 255, 255))
                 t2 = f_sub.render("Click to Start", True, (200, 220, 255))
                 draw_text_center(t1, f_big, -50, (255, 255, 255))
                 draw_text_center(t2, f_sub, 50, (200, 200, 200))
 
-            elif state == "LEVEL_DONE":
-                t1 = f_big.render("GOOD JOB!", True, (255, 215, 0))
-                t2 = f_sub.render("Click for Next Level", True, (255, 255, 255))
-                draw_text_center(t1, f_big, -50, (255, 215, 0))
-                draw_text_center(t2, f_sub, 50, (255, 255, 255))
+            # --- GAME OVER / LEVEL DONE ---
+            elif state == "GAME_OVER" or state == "LEVEL_DONE":
+                # 1. Фон
+                if blur_bg:
+                    screen.blit(blur_bg, (0, 0))
+                else:
+                    screen.fill(COLOR_TOP)
 
-            elif state == "GAME_OVER":
-                t1 = f_big.render("TIME UP!", True, (255, 100, 100))
-                t2 = f_sub.render(f"Score: {int(score)}", True, (255, 255, 255))
-                t3 = f_ui.render("Click to Retry", True, (200, 200, 200))
-                draw_text_center(t1, f_big, -60, (255, 100, 100))
-                draw_text_center(t2, f_sub, 20, (255, 255, 255))
-                draw_text_center(t3, f_ui, 80, (200, 200, 200))
+                # 2. Плавная анимация (float)
+                # Используем Quartic Ease-Out для очень плавного торможения
+                if anim_progress < 1.0:
+                    anim_progress += 0.015  # Скорость анимации (меньше = плавнее)
+                    if anim_progress > 1.0: anim_progress = 1.0
 
-            elif state == "WIN":
-                pulse = math.sin(now * 0.005) * 10
-                t1 = f_big.render("VICTORY!", True, (255, 215, 0))
-                t2 = f_sub.render(f"Total Score: {int(score)}", True, (255, 255, 255))
-                draw_text_center(t1, f_big, -50 + pulse, (255, 215, 0))
-                draw_text_center(t2, f_sub, 40, (255, 255, 255))
+                # Функция плавности: 1 - (1-t)^4
+                ease = 1 - math.pow(1 - anim_progress, 4)
+
+                # 3. Затемнение фона (до 200, синхронно с анимацией)
+                dark_alpha = int(ease * 200)
+                darkness = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                darkness.fill((0, 0, 0, dark_alpha))
+                screen.blit(darkness, (0, 0))
+
+                current_img = win_image if state == "LEVEL_DONE" else lose_image
+
+                if state == "LEVEL_DONE":
+                    if curr_lvl == len(LEVELS) - 1:
+                        sub_text = f"Total Score: {int(score)}"
+                        hint_text = "Click to Finish"
+                    else:
+                        sub_text = f"Level Score: {int(score)}"
+                        hint_text = "Click for Next Level"
+                else:
+                    sub_text = f"Final Score: {int(score)}"
+                    hint_text = "Click to Restart"
+
+                if current_img:
+                    # 4. Pop-up Картинки (Масштаб от 0.6 до 1.0)
+                    current_scale = 0.6 + 0.4 * ease
+
+                    if current_scale > 0.1:
+                        img_target_w = 480
+                        aspect_ratio = current_img.get_height() / current_img.get_width()
+                        img_target_h = int(img_target_w * aspect_ratio)
+
+                        final_w = int(img_target_w * current_scale)
+                        final_h = int(img_target_h * current_scale)
+                        final_img = pygame.transform.smoothscale(current_img, (final_w, final_h))
+
+                        # Делаем картинку полупрозрачной в начале вылета
+                        final_img.set_alpha(int(255 * ease))
+
+                        img_rect = final_img.get_rect()
+                        # Центрируем выше середины
+                        img_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50)
+
+                        screen.blit(final_img, img_rect)
+
+                        # 5. Текст (появляется снизу вверх, с прозрачностью)
+                        if ease > 0.5:
+                            text_alpha = int(255 * ease)
+
+                            # Позиция текста чуть ниже картинки
+                            y_start = img_rect.bottom + 45
+
+                            # Счет (Крупно)
+                            draw_pro_text(screen, sub_text, f_sub, (SCREEN_WIDTH // 2, y_start), (255, 255, 255))
+
+                            # Разделительная линия (анимация ширины)
+                            line_width = int(300 * ease)
+                            if line_width > 0:
+                                line_surf = pygame.Surface((line_width, 2), pygame.SRCALPHA)
+                                line_surf.fill((255, 255, 255, 180))  # Полупрозрачная белая линия
+                                line_rect = line_surf.get_rect(center=(SCREEN_WIDTH // 2, y_start + 30))
+                                screen.blit(line_surf, line_rect)
+
+                            # Подсказка (Мелко)
+                            draw_pro_text(screen, hint_text, f_small, (SCREEN_WIDTH // 2, y_start + 55),
+                                          (200, 200, 200))
+
+                else:
+                    # Резервный текст (если нет картинок)
+                    t1_text = "VICTORY!" if state == "LEVEL_DONE" else "GAME OVER"
+                    col = (255, 215, 0) if state == "LEVEL_DONE" else (255, 100, 100)
+                    draw_text_center(f_big.render(t1_text, True, col), f_big, -60, col)
+                    draw_text_center(f_sub.render(sub_text, True, (255, 255, 255)), f_sub, 20, (255, 255, 255))
+                    draw_text_center(f_ui.render(hint_text, True, (200, 200, 200)), f_ui, 80, (200, 200, 200))
 
         pygame.display.flip()
     return

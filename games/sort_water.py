@@ -235,18 +235,69 @@ class Tube:
                 p.draw(surface)
 
 
+# --- ФУНКЦИЯ ДЛЯ КРАСИВОГО ТЕКСТА ---
+def draw_pro_text(surface, text, font, center_pos, color=(255, 255, 255)):
+    # 1. Тень (мягкая)
+    shadow_surf = font.render(text, True, (0, 0, 0))
+    shadow_surf.set_alpha(120)
+    shadow_rect = shadow_surf.get_rect(center=(center_pos[0] + 3, center_pos[1] + 3))
+    surface.blit(shadow_surf, shadow_rect)
+
+    # 2. Обводка
+    offsets = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
+    for dx, dy in offsets:
+        outline = font.render(text, True, (0, 0, 0))
+        outline.set_alpha(150)
+        r = outline.get_rect(center=(center_pos[0] + dx, center_pos[1] + dy))
+        surface.blit(outline, r)
+
+    # 3. Основной текст
+    text_surf = font.render(text, True, color)
+    text_rect = text_surf.get_rect(center=center_pos)
+    surface.blit(text_surf, text_rect)
+
+
 class GameManager:
     def __init__(self, screen, font_ui, font_title):
         self.screen = screen
         self.font_ui = font_ui
         self.font_title = font_title
 
+        # Доп шрифты для красивого окна
+        try:
+            self.font_sub = pygame.font.SysFont("georgia", 36)
+            self.font_small = pygame.font.SysFont("arial", 22, bold=True)
+        except:
+            self.font_sub = font_ui
+            self.font_small = font_ui
+
         self.level_idx = load_progress()
         self.moves = 0
 
+        self.load_images()
         self.load_level(self.level_idx)
         self.snow = SnowManager()
+
+        # Состояние игры
         self.game_won = False
+
+        # Анимация
+        self.anim_progress = 0.0
+        self.blur_bg = None
+
+    def load_images(self):
+        self.win_image = None
+        self.lose_image = None
+        try:
+            w_path = resource_path(os.path.join("Win_Lose_screen", "Win.png"))
+            if os.path.exists(w_path):
+                self.win_image = pygame.image.load(w_path).convert_alpha()
+
+            l_path = resource_path(os.path.join("Win_Lose_screen", "Lose.png"))
+            if os.path.exists(l_path):
+                self.lose_image = pygame.image.load(l_path).convert_alpha()
+        except Exception as e:
+            pass
 
     def load_level(self, idx):
         self.level_idx = idx
@@ -288,11 +339,15 @@ class GameManager:
 
         self.selected_idx = None
         self.game_won = False
+        self.anim_progress = 0.0
+        self.blur_bg = None
         save_progress(self.level_idx)
 
-    # --- УПРАВЛЕНИЕ МЫШЬЮ ---
     def handle_click(self, pos):
+        # Если победа и анимация закончилась - клик переходит на след. уровень
         if self.game_won:
+            if self.anim_progress >= 1.0:
+                self.next_level()
             return
 
         clicked_idx = None
@@ -359,6 +414,13 @@ class GameManager:
             if len(set(tube.content)) != 1: won = False; break
         if won:
             self.game_won = True
+            # Создаем скриншот для размытия
+            try:
+                snapshot = self.screen.copy()
+                small = pygame.transform.smoothscale(snapshot, (WIDTH // 10, HEIGHT // 10))
+                self.blur_bg = pygame.transform.smoothscale(small, (WIDTH, HEIGHT))
+            except:
+                self.blur_bg = None
             play_sfx("win")
 
     def next_level(self):
@@ -376,48 +438,104 @@ class GameManager:
         for tube in self.tubes:
             tube.update()
 
+        # Анимация победы (замедлена с 0.015 до 0.010 для большей плавности)
+        if self.game_won:
+            if self.anim_progress < 1.0:
+                self.anim_progress += 0.010
+                if self.anim_progress > 1.0: self.anim_progress = 1.0
+
     def draw(self):
         surface = self.screen
-        # Фон
-        for i in range(HEIGHT):
-            ratio = i / HEIGHT
-            color = [C_BG_TOP[j] * (1 - ratio) + C_BG_BOT[j] * ratio for j in range(3)]
-            pygame.draw.line(surface, color, (0, i), (WIDTH, i))
-        self.snow.update_draw(surface)
+
+        if not self.game_won:
+            # Обычный фон игры
+            for i in range(HEIGHT):
+                ratio = i / HEIGHT
+                color = [C_BG_TOP[j] * (1 - ratio) + C_BG_BOT[j] * ratio for j in range(3)]
+                pygame.draw.line(surface, color, (0, i), (WIDTH, i))
+            self.snow.update_draw(surface)
+        else:
+            # Размытый фон при победе
+            if self.blur_bg:
+                surface.blit(self.blur_bg, (0, 0))
+            else:
+                surface.fill(C_BG_TOP)
 
         # Заголовок
-        title_surf = self.font_title.render(f"Level {self.level_idx + 1}", True, C_TEXT)
-        surface.blit(title_surf, (WIDTH // 2 - title_surf.get_width() // 2, 50))
+        if not self.game_won:
+            title_surf = self.font_title.render(f"Level {self.level_idx + 1}", True, C_TEXT)
+            surface.blit(title_surf, (WIDTH // 2 - title_surf.get_width() // 2, 50))
 
-        # UI
-        ui_text = "R: Restart | ESC: Menu"
-        ui_surf = self.font_ui.render(ui_text, True, (150, 150, 150))
-        surface.blit(ui_surf, (WIDTH - 260, 15))
+            ui_text = "R: Restart | ESC: Menu"
+            ui_surf = self.font_ui.render(ui_text, True, (150, 150, 150))
+            surface.blit(ui_surf, (WIDTH - 260, 15))
 
-        moves_surf = self.font_ui.render(f"Moves: {self.moves}", True, (200, 200, 100))
-        surface.blit(moves_surf, (WIDTH - 260, 45))
+            moves_surf = self.font_ui.render(f"Moves: {self.moves}", True, (200, 200, 100))
+            surface.blit(moves_surf, (WIDTH - 260, 45))
 
-        # Колбы
-        for i, tube in enumerate(self.tubes):
-            tube.draw(surface)
+        # Колбы (рисуем всегда)
+        if not self.game_won or (self.game_won and self.blur_bg is None):
+            for i, tube in enumerate(self.tubes):
+                tube.draw(surface)
 
-        # Win Screen
+        # Win Screen (Professional Style)
         if self.game_won:
-            overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 150))
-            surface.blit(overlay, (0, 0))
+            # 1. Функция плавности (Quartic Ease-Out)
+            ease = 1 - math.pow(1 - self.anim_progress, 4)
 
-            win_text = self.font_title.render("Level Complete!", True, (230, 190, 120))
-            moves_res_text = self.font_ui.render(f"Finished in {self.moves} moves", True, (200, 200, 200))
+            # 2. Затемнение (до 160, было 200) - чуть светлее
+            dark_alpha = int(ease * 160)
+            darkness = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            darkness.fill((0, 0, 0, dark_alpha))
+            surface.blit(darkness, (0, 0))
 
-            next_hint = "Click or Press SPACE for next level"
-            if self.level_idx == len(LEVELS) - 1:
-                next_hint = "Game Finished! Click to replay"
-            hint_text = self.font_ui.render(next_hint, True, C_TEXT)
+            # 3. Картинка и текст
+            if self.win_image:
+                # Масштабирование (Pop-up)
+                current_scale = 0.6 + 0.4 * ease
+                if current_scale > 0.1:
+                    img_target_w = 480
+                    aspect_ratio = self.win_image.get_height() / self.win_image.get_width()
+                    img_target_h = int(img_target_w * aspect_ratio)
 
-            surface.blit(win_text, (WIDTH // 2 - win_text.get_width() // 2, HEIGHT // 2 - 80))
-            surface.blit(moves_res_text, (WIDTH // 2 - moves_res_text.get_width() // 2, HEIGHT // 2 - 20))
-            surface.blit(hint_text, (WIDTH // 2 - hint_text.get_width() // 2, HEIGHT // 2 + 30))
+                    final_w = int(img_target_w * current_scale)
+                    final_h = int(img_target_h * current_scale)
+                    final_img = pygame.transform.smoothscale(self.win_image, (final_w, final_h))
+
+                    # Прозрачность при появлении
+                    final_img.set_alpha(int(255 * ease))
+
+                    img_rect = final_img.get_rect()
+                    img_rect.center = (WIDTH // 2, HEIGHT // 2 - 50)
+
+                    surface.blit(final_img, img_rect)
+
+                    # Текст (появляется только когда картинка почти остановилась)
+                    if ease > 0.6:
+                        text_alpha = int(255 * ease)
+                        y_start = img_rect.bottom + 45
+
+                        moves_text = f"Finished in {self.moves} moves"
+                        hint_text = "Click to Continue"
+                        if self.level_idx == len(LEVELS) - 1:
+                            hint_text = "Game Completed! Click to replay"
+
+                        # Отрисовка с тенью и обводкой
+                        draw_pro_text(surface, moves_text, self.font_sub, (WIDTH // 2, y_start), (255, 255, 255))
+
+                        # Разделитель (плавная ширина)
+                        line_width = int(300 * ease)
+                        if line_width > 0:
+                            line_surf = pygame.Surface((line_width, 2), pygame.SRCALPHA)
+                            line_surf.fill((255, 255, 255, 180))
+                            line_rect = line_surf.get_rect(center=(WIDTH // 2, y_start + 30))
+                            surface.blit(line_surf, line_rect)
+
+                        draw_pro_text(surface, hint_text, self.font_small, (WIDTH // 2, y_start + 55), (200, 200, 200))
+            else:
+                # Фоллбэк
+                win_text = self.font_title.render("Level Complete!", True, (230, 190, 120))
+                surface.blit(win_text, (WIDTH // 2 - win_text.get_width() // 2, HEIGHT // 2 - 50))
 
 
 # ====== ЗАПУСК ======
@@ -442,16 +560,13 @@ def run():
                     running = False
                 elif event.key == pygame.K_r:
                     game.reset_level()
-                # Пробел тоже работает для перехода
                 elif game.game_won and event.key == pygame.K_SPACE:
-                    game.next_level()
+                    if game.anim_progress >= 1.0:
+                        game.next_level()
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # ЛКМ
-                    if game.game_won:
-                        game.next_level()  # Клик для след уровня
-                    else:
-                        game.handle_click(event.pos)  # Клик для игры
+                    game.handle_click(event.pos)
 
         game.update()
         game.draw()

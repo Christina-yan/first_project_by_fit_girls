@@ -5,41 +5,28 @@ import math
 import os
 import traceback
 
+
 def resource_path(relative_path):
     """Ищем ресурсы рядом со скриптом или рядом с exe"""
-
-    # 1. Если запущено как exe
     if getattr(sys, "frozen", False):
-        # Сначала рядом с exe
         exe_dir = os.path.dirname(sys.executable)
         path = os.path.join(exe_dir, "games", relative_path)
         if os.path.exists(path):
             return path
-
-        # Или просто рядом с exe
         path = os.path.join(exe_dir, relative_path)
         if os.path.exists(path):
             return path
-
-        # Или в _MEIPASS
         try:
             path = os.path.join(sys._MEIPASS, relative_path)
             if os.path.exists(path):
                 return path
         except AttributeError:
             pass
-
-    # 2. Рядом со скриптом (обычный запуск)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(script_dir, relative_path)
 
 
 SOUNDS_DIR = resource_path("sounds")
-# Отладка — удалите потом
-print(f"Ищу звуки в: {SOUNDS_DIR}")
-print(f"Папка существует: {os.path.exists(SOUNDS_DIR)}")
-if os.path.exists(SOUNDS_DIR):
-    print(f"Файлы в папке: {os.listdir(SOUNDS_DIR)}")
 
 # --- КОНФИГУРАЦИЯ ---
 WIDTH = 920
@@ -122,10 +109,8 @@ def load_sounds():
         "lose": ["break (lose).wav", "break (lose).mp3"],
         "menu": ["flip.wav", "flip.mp3"],
     }
-
     for name, filenames in files.items():
         for filename in filenames:
-            # Используем абсолютный путь
             sound_path = os.path.join(SOUNDS_DIR, filename)
             if os.path.exists(sound_path):
                 try:
@@ -139,6 +124,7 @@ def load_sounds():
 def play_sfx(name):
     if name in SOUNDS:
         SOUNDS[name].play()
+
 
 # --- ПОМОЩНИКИ ---
 def get_font(names, size, is_bold=False):
@@ -160,7 +146,6 @@ def draw_rounded_rect(surf, rect, color, rad, shadow=5):
 
 
 # --- КЛАССЫ ДЕКОРА ---
-
 
 class GiftBox:
     def __init__(self, x, y, w, h, color):
@@ -198,7 +183,6 @@ class RealisticTree:
         self.h = height
         self.surface = pygame.Surface((width, height + 20), pygame.SRCALPHA)
 
-        # Ствол
         trunk_w, trunk_h = 20, 30
         pygame.draw.rect(
             self.surface,
@@ -206,7 +190,6 @@ class RealisticTree:
             (width // 2 - trunk_w // 2, height - trunk_h, trunk_w, trunk_h),
         )
 
-        # Генерация хвои (иголки)
         layers = 15
         for i in range(layers):
             progress = i / layers
@@ -231,34 +214,20 @@ class RealisticTree:
                         2,
                     )
 
-        # --- ИГРУШКИ (ИСПРАВЛЕННАЯ ЛОГИКА) ---
-        # Распределяем шарики строго внутри конуса елки
         for _ in range(14):
-            # Выбираем случайную высоту (Y) от 40px сверху до низа веток
             ty = random.randint(40, height - 35)
-
-            # Рассчитываем максимальную ширину елки на этой высоте
-            # (ty / height) дает прогресс от верха к низу (0..1)
-            # Умножаем на половину ширины елки и уменьшаем на 10px для отступа от края
             current_radius = (width / 2) * (ty / height) * 0.8
-
             if current_radius < 2:
                 continue
-
-            # Случайный сдвиг по X внутри этого радиуса
             ox = random.uniform(-current_radius, current_radius)
             tx = width // 2 + ox
-
-            # Рисуем шарик
             pygame.draw.circle(
                 self.surface, random.choice(ORNAMENT_COLORS), (int(tx), int(ty)), 5
             )
-            # Блик
             pygame.draw.circle(
                 self.surface, (255, 255, 255), (int(tx) - 2, int(ty) - 2), 1
             )
 
-        # Звезда
         star_x, star_y = width // 2, 15
         pts = []
         for k in range(10):
@@ -327,8 +296,8 @@ class Branch:
         self.layers, self.orn, self.snow = [], [], []
         for i in range(400):
             t = i / 400
-            bx = (1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * p1[0] + t**2 * p2[0]
-            by = (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t**2 * p2[1]
+            bx = (1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * p1[0] + t ** 2 * p2[0]
+            by = (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t ** 2 * p2[1]
             ang = math.atan2(
                 2 * (1 - t) * (p1[1] - p0[1]) + 2 * t * (p2[1] - p1[1]),
                 2 * (1 - t) * (p1[0] - p0[0]) + 2 * t * (p2[0] - p1[0]),
@@ -443,7 +412,6 @@ class Game_2048:
             pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("2048: Exclusive Edition")
-        # --- ЗВУКИ ---
         load_sounds()
         self.clock = pygame.time.Clock()
 
@@ -477,7 +445,7 @@ class Game_2048:
         self.gifts = [
             GiftBox(55, 640, 30, 25, (200, 50, 50)),
             GiftBox(95, 645, 25, 20, (50, 100, 200)),
-            GiftBox(125, 655, 35, 30, (50, 150, 50)),  # Зеленый подарок опущен ниже
+            GiftBox(125, 655, 35, 30, (50, 150, 50)),
         ]
         self.snow = [
             [
@@ -489,8 +457,27 @@ class Game_2048:
             for _ in range(100)
         ]
 
+        self.lose_image_original = self.load_lose_image()
+        self.lose_surf = None
+
+        self.blur_bg = None
+        self.final_image_rect = None
+
         self.best_score = self.load_best()
         self.init_game()
+
+    def load_lose_image(self):
+        try:
+            path = resource_path(os.path.join("Win_Lose_screen", "Lose.png"))
+            if os.path.exists(path):
+                img = pygame.image.load(path).convert_alpha()
+                print("Картинка Lose.png успешно загружена")
+                return img
+            else:
+                return None
+        except Exception as e:
+            print(f"Ошибка загрузки картинки Lose.png: {e}")
+            return None
 
     def load_best(self):
         try:
@@ -516,6 +503,10 @@ class Game_2048:
         self.anim_state = "IDLE"
         self.moves = []
         self.pop_tile = None
+
+        self.blur_bg = None
+        self.btn_try.rect.center = (WIDTH // 2, HEIGHT // 2 + 80)
+
         self.add_tile(2)
 
     def add_tile(self, count=1):
@@ -616,6 +607,41 @@ class Game_2048:
             self.anim_state = "SLIDE"
             self.anim_t = 0
 
+    def create_blur_bg(self):
+        try:
+            snapshot = self.screen.copy()
+            small = pygame.transform.smoothscale(snapshot, (WIDTH // 10, HEIGHT // 10))
+            self.blur_bg = pygame.transform.smoothscale(small, (WIDTH, HEIGHT))
+        except:
+            self.blur_bg = None
+
+    def setup_game_over(self):
+        self.game_over = True
+        play_sfx("lose")
+        self.create_blur_bg()
+
+        # --- НАСТРОЙКА БЕЗ ПАНЕЛИ ---
+        if self.lose_image_original:
+            img_target_w = 540
+            aspect_ratio = self.lose_image_original.get_height() / self.lose_image_original.get_width()
+            img_target_h = int(img_target_w * aspect_ratio)
+
+            # Масштабируем саму картинку
+            self.lose_surf = pygame.transform.smoothscale(self.lose_image_original, (img_target_w, img_target_h))
+
+            # Расчитываем позицию (по центру, чуть выше середины)
+            self.final_image_rect = self.lose_surf.get_rect()
+            self.final_image_rect.center = (WIDTH // 2, HEIGHT // 2 - 20)
+
+            # Позиционируем кнопку ПОД картинкой
+            self.btn_try.rect.centerx = WIDTH // 2
+            self.btn_try.rect.top = self.final_image_rect.bottom + 30
+
+        else:
+            # Резервный вариант
+            self.lose_surf = None
+            self.btn_try.rect.center = (WIDTH // 2, HEIGHT // 2 + 60)
+
     def update(self):
         for s in self.snow:
             s[1] += s[3]
@@ -634,8 +660,7 @@ class Game_2048:
                     self.save_best()
                 self.add_tile()
                 if self.check_over() and not self.game_over:
-                    self.game_over = True
-                    play_sfx("lose")
+                    self.setup_game_over()
         elif self.anim_state == "SPAWN":
             if self.pop_tile:
                 self.pop_tile["scale"] += POP_SPEED
@@ -650,8 +675,8 @@ class Game_2048:
         for i in range(4):
             for j in range(3):
                 if (
-                    self.matrix[i][j] == self.matrix[i][j + 1]
-                    or self.matrix[j][i] == self.matrix[j + 1][i]
+                        self.matrix[i][j] == self.matrix[i][j + 1]
+                        or self.matrix[j][i] == self.matrix[j + 1][i]
                 ):
                     return False
         return True
@@ -749,9 +774,9 @@ class Game_2048:
                     if val != 0:
                         scale = 1.0
                         if (
-                            self.pop_tile
-                            and self.pop_tile["r"] == r
-                            and self.pop_tile["c"] == c
+                                self.pop_tile
+                                and self.pop_tile["r"] == r
+                                and self.pop_tile["c"] == c
                         ):
                             scale = self.pop_tile["scale"]
                         px, py = self.get_pos(r, c)
@@ -760,20 +785,47 @@ class Game_2048:
         for d in self.decor:
             d.draw(self.screen)
 
+        # --- ОТРИСОВКА GAME OVER (ТОЛЬКО КАРТИНКА, БЕЗ ТЕНИ) ---
         if self.game_over:
-            if self.fade < 210:
-                self.fade += 5
+            # 1. Размытый фон
+            if self.blur_bg:
+                self.screen.blit(self.blur_bg, (0, 0))
+
+            if self.fade < 255:
+                self.fade += 8
+
+            # Затемнение фона
+            alpha = min(self.fade, 180)
             ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-            ov.fill((0, 0, 0, self.fade))
+            ov.fill((0, 0, 0, alpha))
             self.screen.blit(ov, (0, 0))
-            g = self.ft.render("Game Over", True, COLORS["caramel_text"])
-            gs = self.ft.render("Game Over", True, (0, 0, 0))
-            gr = g.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 40))
-            self.screen.blit(gs, (gr.x + 3, gr.y + 3))
-            self.screen.blit(g, gr)
+
+            if self.lose_surf and self.final_image_rect:
+                # Анимация "Pop-up"
+                current_scale = 0.85 + 0.15 * (self.fade / 255)
+
+                if current_scale > 0.1:
+                    # Масштабируем картинку для анимации
+                    final_img_w = int(self.lose_surf.get_width() * current_scale)
+                    final_img_h = int(self.lose_surf.get_height() * current_scale)
+                    final_img = pygame.transform.smoothscale(self.lose_surf, (final_img_w, final_img_h))
+
+                    img_draw_rect = final_img.get_rect()
+                    img_draw_rect.center = self.final_image_rect.center
+
+                    # Рисуем саму картинку (без тени)
+                    self.screen.blit(final_img, img_draw_rect)
+
+            else:
+                g = self.ft.render("Game Over", True, COLORS["caramel_text"])
+                gs = self.ft.render("Game Over", True, (0, 0, 0))
+                gr = g.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 40))
+                self.screen.blit(gs, (gr.x + 3, gr.y + 3))
+                self.screen.blit(g, gr)
+
+            # Рисуем кнопку ПОВЕРХ всего
             self.btn_try.draw(self.screen)
 
-    # --- СТАЛО ---
     def run(self):
         running = True
         while running:
@@ -781,7 +833,7 @@ class Game_2048:
                 if e.type == pygame.QUIT:
                     running = False
                 elif e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:
-                    running = False  # ESC = выход в меню
+                    running = False
                 elif self.game_over:
                     if self.btn_try.event(e):
                         self.init_game()
@@ -800,9 +852,7 @@ class Game_2048:
         return
 
 
-# ====== ВОТ ЭТО ГЛАВНОЕ — ФУНКЦИЯ ВНЕ КЛАССА ======
 def run():
-    """Точка входа для вызова из главного меню"""
     try:
         game = Game_2048()
         game.run()
@@ -811,6 +861,5 @@ def run():
         traceback.print_exc()
 
 
-# Для запуска файла напрямую (отладка)
 if __name__ == "__main__":
     run()
